@@ -302,8 +302,9 @@ export const ExportData: React.FC = () => {
         <Card>
           <h3 className="text-lg font-bold text-textDark mb-1">Export Registration Payments</h3>
           <p className="text-sm text-textMuted mb-4">
-            Filter by year, district, and unit. The CSV includes a payment proof URL column with
-            direct links to uploaded files (no login required to open the link).
+            Filter by year, district, and unit. The CSV includes all proof submissions
+            (approved, rejected, pending, and partial) grouped together by unit, with a
+            blank row between units for easier reading.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
