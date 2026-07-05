@@ -94,6 +94,7 @@ export const MemberInfoChangeRequests: React.FC = () => {
     if (changes.dob) changeList.push(`DOB: ${changes.dob}`);
     if (changes.bloodGroup) changeList.push(`Blood Group: ${changes.bloodGroup}`);
     if (changes.qualification) changeList.push(`Qualification: ${changes.qualification}`);
+    if (changes.number) changeList.push(`Mobile: ${changes.number}`);
     if (changes.residenceLocation) {
       changeList.push(`Location: ${getResidenceLocationLabel(changes.residenceLocation)}`);
     }

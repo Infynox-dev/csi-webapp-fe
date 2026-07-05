@@ -27,7 +27,7 @@ export const MEMBER_REQUEST_TYPES: ChangeRequestTypeOption[] = [
   {
     id: 'member-info',
     title: 'Member Info Change',
-    description: 'Update name, gender, date of birth, blood group, or qualification',
+    description: 'Update name, gender, date of birth, blood group, mobile number, or qualification',
     path: '/unit/submit-member-info',
     memberSpecific: true,
   },

@@ -822,6 +822,7 @@ export interface MemberInfoChangeRequest {
     dob?: string;
     bloodGroup?: string;
     qualification?: string;
+    number?: string;
     residenceLocation?: ResidenceLocation;
     residenceStateId?: number | null;
     residenceCityId?: number | null;
@@ -1118,6 +1119,7 @@ export interface MemberInfoChangeSubmission {
     dob?: string;
     bloodGroup?: string;
     qualification?: string;
+    number?: string;
     residenceLocation?: ResidenceLocation;
     residenceStateId?: number | null;
     residenceCityId?: number | null;

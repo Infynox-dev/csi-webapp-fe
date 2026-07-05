@@ -1531,6 +1531,7 @@ class ApiService {
       dob: string | null;
       blood_group: string | null;
       qualification: string | null;
+      number: string | null;
       residence_location: string | null;
       residence_state_id: number | null;
       residence_city_id: number | null;
@@ -1576,6 +1577,7 @@ class ApiService {
         dob: request.dob || undefined,
         bloodGroup: request.blood_group || undefined,
         qualification: request.qualification || undefined,
+        number: request.number || undefined,
         residenceLocation: (request.residence_location as ResidenceLocation | null) || undefined,
         residenceStateId: request.residence_state_id ?? undefined,
         residenceCityId: request.residence_city_id ?? undefined,
@@ -2519,6 +2521,7 @@ class ApiService {
     if (payload.changes.dob) formData.append('dob', payload.changes.dob);
     if (payload.changes.bloodGroup) formData.append('blood_group', payload.changes.bloodGroup);
     if (payload.changes.qualification) formData.append('qualification', payload.changes.qualification);
+    if (payload.changes.number) formData.append('number', payload.changes.number);
     if (payload.changes.residenceLocation) {
       formData.append('residence_location', payload.changes.residenceLocation);
     }

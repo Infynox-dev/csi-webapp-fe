@@ -1,6 +1,7 @@
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Card, Badge } from '../../../../components/ui';
 import { FileUpload } from '../../../../components/FileUpload';
+import { PhoneField } from '../../../../components/PhoneField';
 import { useToast } from '../../../../components/Toast';
 import { UnitMember } from '../../../../types';
 import { useSubmitMemberInfoChange } from '../../../../hooks/queries';
@@ -11,6 +12,13 @@ import {
   parseResidenceFormValue,
   ResidenceFormValue,
 } from '../../../../utils/memberResidence';
+import {
+  getPhoneCountryFromResidence,
+  getPhoneValidationError,
+  isInternationalResidence,
+  normalizePhone,
+  phonesEqual,
+} from '../../../../utils/phoneNumber';
 
 const MemberResidenceFields = lazyImport(() =>
   import('../../../../components/MemberResidenceFields').then((module) => ({
@@ -37,6 +45,7 @@ export const MemberInfoChangeFormStep: React.FC<MemberInfoChangeFormStepProps> =
     dob: '',
     bloodGroup: '',
     qualification: '',
+    number: '',
   });
   const [residence, setResidence] = useState<ResidenceFormValue>({
     livesInKerala: null,
@@ -46,17 +55,28 @@ export const MemberInfoChangeFormStep: React.FC<MemberInfoChangeFormStepProps> =
   });
   const [reason, setReason] = useState('');
   const [proofFile, setProofFile] = useState<File | null>(null);
+  const phoneCountry = getPhoneCountryFromResidence(residence);
+  const previousPhoneCountryRef = useRef(phoneCountry);
 
   useEffect(() => {
+    const parsedResidence = parseResidenceFormValue(selectedMember);
     setFormData({
       name: selectedMember.name,
       gender: selectedMember.gender,
       dob: selectedMember.dob,
       bloodGroup: selectedMember.bloodGroup || '',
       qualification: selectedMember.qualification || '',
+      number: selectedMember.number || '',
     });
-    setResidence(parseResidenceFormValue(selectedMember));
+    setResidence(parsedResidence);
+    previousPhoneCountryRef.current = getPhoneCountryFromResidence(parsedResidence);
   }, [selectedMember]);
+
+  useEffect(() => {
+    if (previousPhoneCountryRef.current === phoneCountry) return;
+    previousPhoneCountryRef.current = phoneCountry;
+    setFormData((prev) => (prev.number ? { ...prev, number: '' } : prev));
+  }, [phoneCountry]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +86,19 @@ export const MemberInfoChangeFormStep: React.FC<MemberInfoChangeFormStepProps> =
       return;
     }
 
+    const phoneError = getPhoneValidationError(
+      formData.number,
+      getPhoneCountryFromResidence(residence),
+      isInternationalResidence(residence),
+    );
+    if (phoneError) {
+      addToast(phoneError, 'warning');
+      return;
+    }
+
+    const normalizedNumber =
+      normalizePhone(formData.number, getPhoneCountryFromResidence(residence)) ?? formData.number;
+
     const changes: Record<string, string | number | null> = {};
     if (formData.name !== selectedMember.name) changes.name = formData.name;
     if (formData.gender !== selectedMember.gender) changes.gender = formData.gender;
@@ -73,6 +106,9 @@ export const MemberInfoChangeFormStep: React.FC<MemberInfoChangeFormStepProps> =
     if (formData.bloodGroup !== (selectedMember.bloodGroup || '')) changes.bloodGroup = formData.bloodGroup;
     if (formData.qualification !== (selectedMember.qualification || '')) {
       changes.qualification = formData.qualification;
+    }
+    if (!phonesEqual(normalizedNumber, selectedMember.number || '')) {
+      changes.number = normalizedNumber;
     }
 
     const residenceChange = getResidenceChange(selectedMember, residence);
@@ -130,6 +166,12 @@ export const MemberInfoChangeFormStep: React.FC<MemberInfoChangeFormStepProps> =
               <option value="F">Female</option>
             </select>
           </div>
+          <PhoneField
+            label="Mobile Number"
+            value={formData.number}
+            onChange={(number) => setFormData({ ...formData, number })}
+            defaultCountry={phoneCountry}
+          />
           <div>
             <label className="block text-sm font-medium text-textDark mb-2">Date of Birth</label>
             <input

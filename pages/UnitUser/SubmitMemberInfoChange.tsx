@@ -1,7 +1,8 @@
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, Button, Badge } from '../../components/ui';
 import { FileUpload } from '../../components/FileUpload';
+import { PhoneField } from '../../components/PhoneField';
 import { ArrowLeft, Send } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { getCurrentUnitId } from '../../services/auth';
@@ -13,6 +14,13 @@ import {
   parseResidenceFormValue,
   ResidenceFormValue,
 } from '../../utils/memberResidence';
+import {
+  getPhoneCountryFromResidence,
+  getPhoneValidationError,
+  isInternationalResidence,
+  normalizePhone,
+  phonesEqual,
+} from '../../utils/phoneNumber';
 
 const MemberResidenceFields = lazyImport(() =>
   import('../../components/MemberResidenceFields').then((module) => ({
@@ -42,6 +50,7 @@ export const SubmitMemberInfoChange: React.FC = () => {
     dob: '',
     bloodGroup: '',
     qualification: '',
+    number: '',
   });
   const [residence, setResidence] = useState<ResidenceFormValue>({
     livesInKerala: null,
@@ -51,6 +60,8 @@ export const SubmitMemberInfoChange: React.FC = () => {
   });
   const [reason, setReason] = useState('');
   const [proofFile, setProofFile] = useState<File | null>(null);
+  const phoneCountry = getPhoneCountryFromResidence(residence);
+  const previousPhoneCountryRef = useRef(phoneCountry);
 
   useEffect(() => {
     if (!currentUnitId) {
@@ -69,16 +80,25 @@ export const SubmitMemberInfoChange: React.FC = () => {
     // Auto-fill form with selected member's current data
     const member = members.find(m => m.id === selectedMemberId);
     if (member) {
+      const parsedResidence = parseResidenceFormValue(member);
       setFormData({
         name: member.name,
         gender: member.gender,
         dob: member.dob,
         bloodGroup: member.bloodGroup || '',
         qualification: member.qualification || '',
+        number: member.number || '',
       });
-      setResidence(parseResidenceFormValue(member));
+      setResidence(parsedResidence);
+      previousPhoneCountryRef.current = getPhoneCountryFromResidence(parsedResidence);
     }
   }, [selectedMemberId, members]);
+
+  useEffect(() => {
+    if (previousPhoneCountryRef.current === phoneCountry) return;
+    previousPhoneCountryRef.current = phoneCountry;
+    setFormData((prev) => (prev.number ? { ...prev, number: '' } : prev));
+  }, [phoneCountry]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +113,19 @@ export const SubmitMemberInfoChange: React.FC = () => {
       return;
     }
 
+    const phoneError = getPhoneValidationError(
+      formData.number,
+      getPhoneCountryFromResidence(residence),
+      isInternationalResidence(residence),
+    );
+    if (phoneError) {
+      addToast(phoneError, 'warning');
+      return;
+    }
+
+    const normalizedNumber =
+      normalizePhone(formData.number, getPhoneCountryFromResidence(residence)) ?? formData.number;
+
     const selectedMember = members.find(m => m.id === selectedMemberId);
     const changes: Record<string, string | number | null> = {};
     
@@ -101,6 +134,9 @@ export const SubmitMemberInfoChange: React.FC = () => {
     if (formData.dob !== selectedMember?.dob) changes.dob = formData.dob;
     if (formData.bloodGroup !== (selectedMember?.bloodGroup || '')) changes.bloodGroup = formData.bloodGroup;
     if (formData.qualification !== (selectedMember?.qualification || '')) changes.qualification = formData.qualification;
+    if (!phonesEqual(normalizedNumber, selectedMember?.number || '')) {
+      changes.number = normalizedNumber;
+    }
 
     if (selectedMember) {
       const residenceChange = getResidenceChange(selectedMember, residence);
@@ -224,6 +260,13 @@ export const SubmitMemberInfoChange: React.FC = () => {
                     <option value="F">Female</option>
                   </select>
                 </div>
+
+                <PhoneField
+                  label="Mobile Number"
+                  value={formData.number}
+                  onChange={(number) => setFormData({ ...formData, number })}
+                  defaultCountry={phoneCountry}
+                />
 
                 {/* DOB */}
                 <div>
