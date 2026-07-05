@@ -11,7 +11,7 @@ import { UnitMember, ResidenceLocation, RESIDENCE_LOCATION_OPTIONS, RemovalPayme
 import { getMemberResidenceLabel } from '../../utils/memberResidence';
 import { useMembers, useRemoveUnitMember, useBulkRemoveUnitMembers, useSiteSettings } from '../../hooks/queries';
 
-const MIN_REASON_LENGTH = 10;
+const MIN_REASON_LENGTH = 5;
 
 type DeleteMode = 'single' | 'bulk' | null;
 

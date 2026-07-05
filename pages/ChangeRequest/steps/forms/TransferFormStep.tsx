@@ -41,8 +41,8 @@ export const TransferFormStep: React.FC<TransferFormStepProps> = ({
       addToast('Please provide a reason', 'warning');
       return;
     }
-    if (reason.trim().length < 10) {
-      addToast('Transfer reason must be at least 10 characters', 'warning');
+    if (reason.trim().length < 5) {
+      addToast('Transfer reason must be at least 5 characters', 'warning');
       return;
     }
     if (!proofFile) {
@@ -114,14 +114,14 @@ export const TransferFormStep: React.FC<TransferFormStepProps> = ({
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Enter the reason for transfer (minimum 10 characters)..."
+              placeholder="Enter the reason for transfer (minimum 5 characters)..."
               className="w-full px-3 py-2 border border-borderColor rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
               rows={4}
-              minLength={10}
+              minLength={5}
               required
             />
             <p className="text-xs text-textMuted mt-1">
-              {reason.trim().length}/10 characters minimum
+              {reason.trim().length}/5 characters minimum
             </p>
           </div>
 
