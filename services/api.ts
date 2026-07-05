@@ -2436,6 +2436,27 @@ class ApiService {
     });
   }
 
+  async exportRegistrationPayments(options?: {
+    registrationYear?: number;
+    districtId?: number;
+    unitId?: number;
+  }): Promise<Blob> {
+    const token = this.getToken();
+    if (!token) throw new Error('Authentication required');
+
+    const query: Record<string, string | number> = {};
+    if (options?.registrationYear) query.registration_year = options.registrationYear;
+    if (options?.districtId) query.district_id = options.districtId;
+    if (options?.unitId) query.unit_id = options.unitId;
+
+    return httpGet<Blob>('/admin/units/registration-payments/export', {
+      token,
+      query: Object.keys(query).length ? query : undefined,
+      asBlob: true,
+      timeout: 120000,
+    });
+  }
+
   async approveRegistrationPayment(
     paymentId: number,
     paidAmount: number,
