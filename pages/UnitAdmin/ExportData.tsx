@@ -47,6 +47,7 @@ export const ExportData: React.FC = () => {
   const [paymentDistrict, setPaymentDistrict] = useState<number>(0);
   const [paymentUnit, setPaymentUnit] = useState<number>(0);
   const [exportingPayments, setExportingPayments] = useState(false);
+  const [exportingSummary, setExportingSummary] = useState(false);
 
   useEffect(() => {
     setPaymentYear(activeRegistrationYear);
@@ -141,6 +142,29 @@ export const ExportData: React.FC = () => {
       addToast('Failed to export payment data', 'error');
     } finally {
       setExportingPayments(false);
+    }
+  };
+
+  const handleDistrictSummaryExport = async () => {
+    if (!paymentYear) {
+      addToast('Please select a registration year', 'warning');
+      return;
+    }
+    setExportingSummary(true);
+    try {
+      const blob = await api.exportDistrictPaymentSummary(paymentYear);
+      downloadBlob(
+        blob,
+        getFilenameFromContentDisposition(
+          null,
+          `district_payment_summary_${paymentYear}.xlsx`,
+        ),
+      );
+      addToast('District payment summary exported successfully', 'success');
+    } catch {
+      addToast('Failed to export district payment summary', 'error');
+    } finally {
+      setExportingSummary(false);
     }
   };
 
@@ -302,9 +326,8 @@ export const ExportData: React.FC = () => {
         <Card>
           <h3 className="text-lg font-bold text-textDark mb-1">Export Registration Payments</h3>
           <p className="text-sm text-textMuted mb-4">
-            Filter by year, district, and unit. The CSV includes all proof submissions
-            (approved, rejected, pending, and partial) grouped together by unit, with a
-            blank row between units for easier reading.
+            Filter by year, district, and unit. Export detailed proof submissions as CSV, or
+            download the district payment summary report in the same layout as the MKD spreadsheet.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
@@ -354,15 +377,26 @@ export const ExportData: React.FC = () => {
               </select>
             </div>
           </div>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handlePaymentExport}
-            disabled={exportingPayments || !paymentYear}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            {exportingPayments ? 'Exporting...' : 'Export Payment Data (CSV)'}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handlePaymentExport}
+              disabled={exportingPayments || !paymentYear}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              {exportingPayments ? 'Exporting...' : 'Export Payment Details (CSV)'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDistrictSummaryExport}
+              disabled={exportingSummary || !paymentYear}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              {exportingSummary ? 'Exporting...' : 'Export District Payment Summary (Excel)'}
+            </Button>
+          </div>
         </Card>
       </div>
     </div>

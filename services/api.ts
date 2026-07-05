@@ -2457,6 +2457,21 @@ class ApiService {
     });
   }
 
+  async exportDistrictPaymentSummary(registrationYear?: number): Promise<Blob> {
+    const token = this.getToken();
+    if (!token) throw new Error('Authentication required');
+
+    const query: Record<string, string | number> = {};
+    if (registrationYear) query.registration_year = registrationYear;
+
+    return httpGet<Blob>('/admin/units/registration-payments/summary/export', {
+      token,
+      query: Object.keys(query).length ? query : undefined,
+      asBlob: true,
+      timeout: 120000,
+    });
+  }
+
   async approveRegistrationPayment(
     paymentId: number,
     paidAmount: number,
