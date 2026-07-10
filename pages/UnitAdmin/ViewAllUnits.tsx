@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Badge, Button, IconButton } from '../../components/ui';
 import { DataTable, ColumnDef } from '../../components/DataTable';
@@ -8,7 +8,8 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { api } from '../../services/api';
 import { formatRegistrationSeason } from '../../services/authRouting';
 import { Unit } from '../../types';
-import { useUnits, useCompleteUnitRegistration } from '../../hooks/queries';
+import { useUnits, useCompleteUnitRegistration, useSiteSettings } from '../../hooks/queries';
+import { getCurrentYearIST } from '../../utils/datetime';
 
 const resolveUnitUserId = (unit: Unit): number | null => unit.userId ?? null;
 
@@ -32,6 +33,9 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
   rejected: 'Rejected',
 };
 
+const selectClassName =
+  'px-3 py-2 border border-borderColor rounded-md bg-white text-textDark focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary';
+
 export const ViewAllUnits: React.FC = () => {
   const { addToast } = useToast();
   const navigate = useNavigate();
@@ -39,10 +43,25 @@ export const ViewAllUnits: React.FC = () => {
 
   const { data: units = [], isLoading: loading } = useUnits();
   const completeRegistration = useCompleteUnitRegistration();
+  const { data: siteSettings } = useSiteSettings();
+
+  const activeRegistrationYear = siteSettings?.current_registration_year ?? getCurrentYearIST();
+  const yearOptions = useMemo(() => {
+    const years = new Set<number>([activeRegistrationYear]);
+    for (let offset = 1; offset <= 3; offset += 1) {
+      years.add(activeRegistrationYear - offset);
+    }
+    return Array.from(years).sort((a, b) => b - a);
+  }, [activeRegistrationYear]);
+  const [exportYear, setExportYear] = useState<number>(activeRegistrationYear);
+
+  useEffect(() => {
+    setExportYear(activeRegistrationYear);
+  }, [activeRegistrationYear]);
 
   const handleExport = async () => {
     try {
-      await api.exportData('units');
+      await api.exportData('units', undefined, exportYear);
       addToast('Units data exported successfully', 'success');
     } catch {
       addToast('Failed to export data', 'error');
@@ -189,10 +208,21 @@ export const ViewAllUnits: React.FC = () => {
             Current season registration status for all registered units
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className={selectClassName}
+            value={exportYear}
+            onChange={(e) => setExportYear(Number(e.target.value))}
+          >
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
           <Button variant="primary" size="sm" onClick={handleExport}>
             <Download className="w-4 h-4 mr-2" />
-            Export to Excel
+            Export Units Summary (CSV)
           </Button>
         </div>
       </div>
