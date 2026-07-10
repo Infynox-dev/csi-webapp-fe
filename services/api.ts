@@ -2005,13 +2005,25 @@ class ApiService {
   }
 
   // GET /admin/units/export/{export_type} - Export various unit data
-  async exportData(type: string, id?: number): Promise<ApiResponse<Blob>> {
+  async exportData(
+    type: string,
+    id?: number,
+    registrationYear?: number,
+  ): Promise<ApiResponse<Blob>> {
     const token = this.getToken();
     if (!token) throw new Error('Authentication required');
-    let endpoint = `/admin/units/export/${type}`;
-    if (id) endpoint += `?id=${id}`;
-    const blob = await httpGet<Blob>(endpoint, { token, asBlob: true });
-    const filename = id ? `${type}_${id}.xlsx` : `${type}.xlsx`;
+    const endpoint = `/admin/units/export/${type}`;
+    const query: Record<string, string | number> = {};
+    if (id) query.id = id;
+    if (registrationYear) query.registration_year = registrationYear;
+    const blob = await httpGet<Blob>(endpoint, {
+      token,
+      query: Object.keys(query).length ? query : undefined,
+      asBlob: true,
+    });
+    const extension = type === 'units' ? 'csv' : 'xlsx';
+    const filenameParts = [type, id, registrationYear].filter((part) => part !== undefined);
+    const filename = `${filenameParts.join('_')}.${extension}`;
     downloadBlob(blob, filename);
     return { data: blob, message: 'Data exported successfully', status: 200 };
   }
