@@ -48,9 +48,15 @@ export const ExportData: React.FC = () => {
   const [paymentUnit, setPaymentUnit] = useState<number>(0);
   const [exportingPayments, setExportingPayments] = useState(false);
   const [exportingSummary, setExportingSummary] = useState(false);
+  const [summaryYear, setSummaryYear] = useState<number>(activeRegistrationYear);
+  const [exportingUnitsSummary, setExportingUnitsSummary] = useState(false);
 
   useEffect(() => {
     setPaymentYear(activeRegistrationYear);
+  }, [activeRegistrationYear]);
+
+  useEffect(() => {
+    setSummaryYear(activeRegistrationYear);
   }, [activeRegistrationYear]);
 
   useEffect(() => {
@@ -115,6 +121,18 @@ export const ExportData: React.FC = () => {
       addToast('Unit councilors data exported successfully', 'success');
     } catch {
       addToast('Failed to export data', 'error');
+    }
+  };
+
+  const handleUnitsSummaryExport = async () => {
+    setExportingUnitsSummary(true);
+    try {
+      await api.exportData('units', undefined, summaryYear);
+      addToast('Units summary exported successfully', 'success');
+    } catch {
+      addToast('Failed to export units summary', 'error');
+    } finally {
+      setExportingUnitsSummary(false);
     }
   };
 
@@ -313,6 +331,40 @@ export const ExportData: React.FC = () => {
               emptyMessage="No units found"
               emptyIcon={<Building className="w-8 h-8 text-textMuted" />}
             />
+          </div>
+        </Card>
+
+        <Card>
+          <h3 className="text-lg font-bold text-textDark mb-1">Export Units Summary</h3>
+          <p className="text-sm text-textMuted mb-4">
+            One row per unit for the selected registration year, with membership and gender
+            breakdown. Membership counts reflect each unit's current roster regardless of
+            the year selected.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+            <div className="w-full sm:w-48">
+              <p className="text-sm font-medium text-textMuted mb-2">Registration Year</p>
+              <select
+                className={selectClassName}
+                value={summaryYear}
+                onChange={(e) => setSummaryYear(Number(e.target.value))}
+              >
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleUnitsSummaryExport}
+              disabled={exportingUnitsSummary}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              {exportingUnitsSummary ? 'Exporting...' : 'Export (CSV)'}
+            </Button>
           </div>
         </Card>
       </div>
