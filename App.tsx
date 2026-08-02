@@ -1,7 +1,8 @@
 
 import React, { Suspense, useState } from 'react';
 import { lazyImport } from './utils/chunkLoadError';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Route, Navigate } from 'react-router-dom';
+import { FaroRoutes } from '@grafana/faro-react';
 import { Layout, AuthLayout } from './components/Layout';
 import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -165,7 +166,7 @@ const App: React.FC = () => {
         <ToastProvider>
           <Router>
             <Suspense fallback={<PageLoader />}>
-              <Routes>
+              <FaroRoutes>
               {/* Homepage with Login */}
               <Route path="/" element={<PublicHome onLogin={handleLogin} />} />
               
@@ -618,7 +619,7 @@ const App: React.FC = () => {
 
               {/* Default Redirect */}
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            </FaroRoutes>
           </Suspense>
         </Router>
       </ToastProvider>

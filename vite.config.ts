@@ -46,5 +46,9 @@ export default defineConfig(({ mode }) => {
       optimizeDeps: {
         include: ['html2pdf.js'],
       },
+      // Emit maps for Urgentry upload in Docker; stripped from the public nginx image after upload.
+      build: {
+        sourcemap: true,
+      },
     };
 });

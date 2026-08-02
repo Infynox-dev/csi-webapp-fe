@@ -1,5 +1,4 @@
-
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from './ui';
 import { isChunkLoadError, reloadOnChunkError } from '../utils/chunkLoadError';
@@ -13,7 +12,7 @@ interface State {
   error: Error | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
+export class ErrorBoundary extends React.Component<Props, State> {
   public state: State = {
     hasError: false,
     error: null,
@@ -28,6 +27,11 @@ export class ErrorBoundary extends Component<Props, State> {
     if (reloadOnChunkError(error)) {
       return;
     }
+    void import('@sentry/react').then((Sentry) => {
+      Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
+    }).catch(() => {
+      /* Sentry optional when DSN unset */
+    });
   }
 
   private handleReload = () => {

@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@grafana/faro-react": "^2.9.0",
+    "@grafana/faro-web-tracing": "^2.9.0",
+    "@sentry/react": "^10.69.0",
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-query-devtools": "^5.101.0",
     "@tanstack/react-table": "^8.21.3",
@@ -24,6 +27,7 @@
     "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
+    "@sentry/cli": "^3.6.2",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.21",
