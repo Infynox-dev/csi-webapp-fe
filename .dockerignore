@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.vercel
+.env
+.env.*
+eng.traineddata
+uireview.mjs
+package-lock.json
+playwright-report
+test-results
+*.md
+docs
+scripts
+.pnpm-store
