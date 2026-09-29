@@ -12,7 +12,6 @@ import {
   UnitName,
   DashboardCounts,
   ConferenceItem,
-  PaymentRecord,
   PaymentStatus,
   Unit,
   AdminUnitFullDetail,
@@ -90,11 +89,8 @@ import {
   ConferenceUpdate,
   ConferenceDelegate,
   ConferenceDelegateCreate,
-  ConferencePayment,
-  ConferencePaymentSubmit,
   ConferenceFoodPreference,
   ConferenceInfo,
-  ConferencePaymentInfo,
   DistrictOfficial,
   DistrictOfficialCreate,
   DistrictOfficialUpdate,
@@ -343,7 +339,6 @@ class ApiService {
         registration_fee: 0, // Not in API response
       },
       unit_delegates: [], // Will be fetched separately via getConferenceDelegatesOfficial
-      unit_payment: undefined, // Will be fetched separately
       registration_open: rawData.conference?.status === 'Active' && rawData.rem_count > 0,
       available_members: (rawData.unit_members || []).map((m: any) => ({
         id: m.id,
@@ -426,13 +421,6 @@ class ApiService {
         uploaded_by_id: number | null;
       }>;
     }>('/conference/official/payment', { token });
-  }
-
-  // POST /conference/official/payment - Submit payment for conference
-  submitConferencePaymentOfficial(data: { amount_to_pay: number; payment_reference?: string }) {
-    const token = this.getToken();
-    if (!token) throw new Error('Authentication required');
-    return httpPost<{ message: string; payment_id: number }>('/conference/official/payment', data, { token });
   }
 
   uploadConferencePaymentProofOfficial(file: File, paymentData?: { payment_reference?: string }) {
@@ -744,26 +732,6 @@ class ApiService {
   // Legacy: Add conference delegate (old endpoint)
   addConferenceDelegate(payload: { conference_id: number; official_user_id: number; member_id?: number }, token: string) {
     return httpPost<{ status: string }>('/conference/delegate', payload, { token });
-  }
-
-  // Legacy: Add conference payment (old endpoint)
-  addConferencePayment(payload: { conference_id: number; amount_to_pay: number; payment_reference?: string }, token: string) {
-    return httpPost<PaymentRecord>('/conference/payment', payload, { token });
-  }
-
-  // Legacy: Upload conference payment proof (old endpoint)
-  uploadConferencePaymentProof(paymentId: number, file: File, token: string) {
-    const formData = new FormData();
-    formData.append('file', file);
-    return httpPost<PaymentRecord>(`/conference/payment/${paymentId}/proof`, formData, {
-      token,
-      headers: { 'Content-Type': undefined as any },
-    });
-  }
-
-  // Legacy: Update conference payment status (old endpoint)
-  updateConferencePaymentStatus(paymentId: number, status_value: PaymentStatus, token: string) {
-    return httpPost<PaymentRecord>(`/conference/payment/${paymentId}/status`, { status_value }, { token });
   }
 
   // -------------------------

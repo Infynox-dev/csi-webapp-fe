@@ -334,25 +334,6 @@ export const useRemoveDelegate = () => {
   });
 };
 
-// Submit payment
-export const useSubmitConferencePayment = () => {
-  const queryClient = useQueryClient();
-  const { addToast } = useToast();
-
-  return useMutation({
-    mutationFn: async (data: { amount_to_pay: number; payment_reference?: string }) => {
-      return api.submitConferencePaymentOfficial(data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.conference.delegates() });
-      addToast('Payment submitted successfully', 'success');
-    },
-    onError: (error: any) => {
-      addToast(error.message || 'Failed to submit payment', 'error');
-    },
-  });
-};
-
 // Upload payment proof
 export const useUploadConferencePaymentProof = () => {
   const queryClient = useQueryClient();

@@ -164,27 +164,6 @@ export interface ConferenceDelegateCreate {
   accommodation_required?: boolean;
 }
 
-export interface ConferencePayment {
-  id: number;
-  conference_id: number;
-  unit_id: number;
-  unit_name?: string;
-  amount: number;
-  payment_reference?: string;
-  payment_proof_url?: string;
-  status: 'pending' | 'submitted' | 'verified' | 'rejected';
-  submitted_at?: string;
-  verified_at?: string;
-  verified_by?: string;
-  remarks?: string;
-  created_at: string;
-}
-
-export interface ConferencePaymentSubmit {
-  amount: number;
-  payment_reference?: string;
-}
-
 export interface ConferenceFoodPreference {
   member_id: number;
   preference: 'veg' | 'non-veg';
@@ -200,15 +179,6 @@ export interface ConferenceInfo {
     district_name: string;
     delegate_count: number;
   }>;
-}
-
-export interface ConferencePaymentInfo {
-  conference_id: number;
-  total_units: number;
-  total_amount: number;
-  paid_amount: number;
-  pending_amount: number;
-  payments: ConferencePayment[];
 }
 
 export interface DistrictOfficial {
@@ -312,7 +282,6 @@ export interface ConferenceOfficialView {
     registration_fee?: number;
   };
   unit_delegates: ConferenceDelegate[];
-  unit_payment?: ConferencePayment;
   registration_open: boolean;
   available_members: Array<{
     id: number;
