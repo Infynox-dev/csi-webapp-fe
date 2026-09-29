@@ -60,6 +60,7 @@ export const queryKeys = {
     delegates: () => [...queryKeys.conference.all, 'delegates'] as const,
     officialView: () => [...queryKeys.conference.all, 'officialView'] as const,
     payments: (conferenceId: number) => [...queryKeys.conference.all, 'payments', conferenceId] as const,
+    officialPayment: () => [...queryKeys.conference.all, 'officialPayment'] as const,
     settings: () => [...queryKeys.conference.all, 'settings'] as const,
     adminInfo: (conferenceId: number) => [...queryKeys.conference.all, 'adminInfo', conferenceId] as const,
     officials: () => [...queryKeys.conference.all, 'officials'] as const,

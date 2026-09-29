@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, Mail, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { setAuthTokens, setAuthUser } from '../services/auth';
@@ -20,6 +21,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{email?: string; password?: string}>({});
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [formError, setFormError] = useState('');
 
@@ -83,6 +85,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         
         // Store both access and refresh tokens
         setAuthTokens(tokens.access_token, tokens.refresh_token || '');
+        queryClient.clear();
         
         // Store user_type from login response
         if (tokens.user_type) {

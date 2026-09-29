@@ -4,8 +4,16 @@ import { Card, Badge, Button } from '../../components/ui';
 import { CreditCard, Download, ChevronDown, ChevronRight, MapPin, Search, CheckCircle, Clock, XCircle, FileText } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { api } from '../../services/api';
-import { API_BASE_URL } from '../../services/http';
-import { useConferencesAdmin, useConferencePaymentInfoAdmin, useConferenceSettingsAdmin, useUpdateConferenceSettings } from '../../hooks/queries';
+import { downloadBlob } from '../../services/download';
+import { getMediaUrl } from '../../services/http';
+import {
+  useConferencesAdmin,
+  useConferencePaymentInfoAdmin,
+  useConferenceSettingsAdmin,
+  useUpdateConferenceSettings,
+  useApproveConferencePayment,
+  useDeclineConferencePayment,
+} from '../../hooks/queries';
 
 interface Conference {
   id: number;
@@ -22,12 +30,17 @@ interface DistrictMember {
 }
 
 interface DistrictPayment {
+  id: number;
   amount_to_pay: number;
   uploaded_by: string;
   date: string;
   status: string;
   proof_path: string | null;
+  file_url: string | null;
   payment_reference: string | null;
+  approved_paid_amount: number | null;
+  balance_amount: number | null;
+  rejection_note: string | null;
 }
 
 interface PaymentDistrictInfo {
@@ -37,7 +50,24 @@ interface PaymentDistrictInfo {
   count_of_officials: number;
   count_of_members: number;
   amount_due: number;
+  fee_owed: number;
+  total_paid: number;
+  balance_due: number;
+  payment_credit: number;
+  overall_status: string;
+  latest_rejection_note: string | null;
+  district_id: number;
 }
+
+const isPendingProof = (status: string) => {
+  const value = status.toLowerCase();
+  return value === 'pending' || value === 'proof_uploaded';
+};
+
+const isApprovedProof = (status: string) => {
+  const value = status.toLowerCase();
+  return value === 'paid' || value === 'approved' || value === 'verified';
+};
 
 interface ConferencePaymentInfo {
   conference_id: number;
@@ -59,6 +89,12 @@ export const ConferenceAdminPayments: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [feeInput, setFeeInput] = useState('');
+  const [approvePayment, setApprovePayment] = useState<DistrictPayment | null>(null);
+  const [paidAmount, setPaidAmount] = useState('');
+  const [declinePayment, setDeclinePayment] = useState<DistrictPayment | null>(null);
+  const [rejectionNote, setRejectionNote] = useState('');
+  const approveMutation = useApproveConferencePayment();
+  const declineMutation = useDeclineConferencePayment();
 
   // Sync fee input when settings load
   useEffect(() => {
@@ -87,8 +123,9 @@ export const ConferenceAdminPayments: React.FC = () => {
     
     try {
       setExporting(true);
-      await api.exportConferencePaymentInfoAdmin(selectedConferenceId);
-      addToast("Export initiated successfully", "success");
+      const blob = await api.exportConferencePaymentInfoAdmin(selectedConferenceId);
+      downloadBlob(blob, `conference_payments_${selectedConferenceId}.xlsx`);
+      addToast("Export downloaded", "success");
     } catch (err) {
       addToast("Failed to export data", "error");
     } finally {
@@ -120,8 +157,12 @@ export const ConferenceAdminPayments: React.FC = () => {
     switch (status.toLowerCase()) {
       case 'approved':
       case 'verified':
+      case 'paid':
         return <Badge variant="success"><CheckCircle className="w-3 h-3 mr-1" />Approved</Badge>;
+      case 'partial':
+        return <Badge variant="warning"><Clock className="w-3 h-3 mr-1" />Partial</Badge>;
       case 'pending':
+      case 'proof_uploaded':
         return <Badge variant="warning"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
       case 'rejected':
       case 'declined':
@@ -134,16 +175,13 @@ export const ConferenceAdminPayments: React.FC = () => {
   // Calculate totals (live amount_due based on current fee)
   const totals = paymentInfo ? Object.values(paymentInfo.district_info).reduce(
     (acc, district) => {
-      const districtDue = district.amount_due ?? (
+      const districtDue = district.fee_owed ?? district.amount_due ?? (
         (district.count_of_officials + district.count_of_members) * (paymentInfo.delegate_fee || 0)
       );
-      const approved = district.payments.filter(p => 
-        p.status.toLowerCase() === 'approved' || p.status.toLowerCase() === 'verified' || p.status.toLowerCase() === 'paid'
-      ).reduce((sum, p) => sum + p.amount_to_pay, 0);
-      const pending = district.payments.filter(p => 
-        p.status.toLowerCase() === 'pending' || p.status.toLowerCase() === 'proof_uploaded'
-      ).reduce((sum, p) => sum + p.amount_to_pay, 0);
-      
+      const approved = district.total_paid ?? 0;
+      const pending = district.payments.filter(p => isPendingProof(p.status))
+        .reduce((sum, p) => sum + (p.amount_to_pay || 0), 0);
+
       return {
         total: acc.total + districtDue,
         approved: acc.approved + approved,
@@ -171,14 +209,15 @@ export const ConferenceAdminPayments: React.FC = () => {
         
         if (statusFilter === 'all') return matchesSearch;
         
-        const hasMatchingPayment = info.payments.some(p => {
-          if (statusFilter === 'approved') return p.status.toLowerCase() === 'approved' || p.status.toLowerCase() === 'verified';
-          if (statusFilter === 'pending') return p.status.toLowerCase() === 'pending';
-          if (statusFilter === 'rejected') return p.status.toLowerCase() === 'rejected' || p.status.toLowerCase() === 'declined';
-          return true;
-        });
+        const hasMatchingPayment =
+          (statusFilter === 'approved' && (info.overall_status === 'paid' || info.payments.some(p => isApprovedProof(p.status)))) ||
+          (statusFilter === 'pending' && (info.overall_status === 'pending' || info.overall_status === 'partial' || info.payments.some(p => isPendingProof(p.status)))) ||
+          (statusFilter === 'rejected' && (info.overall_status === 'declined' || info.payments.some(p => {
+            const value = p.status.toLowerCase();
+            return value === 'rejected' || value === 'declined';
+          })));
         
-        return matchesSearch && (info.payments.length === 0 || hasMatchingPayment);
+        return matchesSearch && hasMatchingPayment;
       })
     : [];
 
@@ -337,12 +376,10 @@ export const ConferenceAdminPayments: React.FC = () => {
         ) : (
           <div className="space-y-3">
             {filteredDistricts.map(([district, info]) => {
-              const districtTotal = info.amount_due ?? (
+              const districtTotal = info.fee_owed ?? info.amount_due ?? (
                 (info.count_of_officials + info.count_of_members) * (paymentInfo?.delegate_fee || 0)
               );
-              const approvedTotal = info.payments
-                .filter(p => p.status.toLowerCase() === 'approved' || p.status.toLowerCase() === 'verified' || p.status.toLowerCase() === 'paid')
-                .reduce((sum, p) => sum + p.amount_to_pay, 0);
+              const approvedTotal = info.total_paid ?? 0;
               
               return (
                 <div key={district} className="border border-borderColor rounded-lg overflow-hidden">
@@ -373,12 +410,13 @@ export const ConferenceAdminPayments: React.FC = () => {
                   {expandedDistricts.has(district) && (
                     <div className="p-4 border-t border-borderColor">
                       {/* Delegate Summary */}
-                      <div className="flex gap-4 mb-4 text-sm text-textMuted">
+                      <div className="flex flex-wrap gap-4 mb-4 text-sm text-textMuted">
                         <span>{info.count_of_officials} officials</span>
                         <span>•</span>
                         <span>{info.count_of_members} members</span>
                         <span>•</span>
-                        <span>{info.count_of_officials + info.count_of_members} total delegates</span>
+                        <span>{getStatusBadge(info.overall_status || 'not_submitted')}</span>
+                        <span>Due ₹{(info.balance_due ?? 0).toLocaleString()}</span>
                       </div>
 
                       {/* Payments List */}
@@ -397,13 +435,14 @@ export const ConferenceAdminPayments: React.FC = () => {
                                   <th className="px-3 py-2 text-left font-medium text-textMuted">Reference</th>
                                   <th className="px-3 py-2 text-left font-medium text-textMuted">Status</th>
                                   <th className="px-3 py-2 text-left font-medium text-textMuted">Proof</th>
+                                  <th className="px-3 py-2 text-left font-medium text-textMuted">Review</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {info.payments.map((payment, idx) => (
-                                  <tr key={idx} className="border-t border-borderColor">
+                                {info.payments.map((payment) => (
+                                  <tr key={payment.id} className="border-t border-borderColor">
                                     <td className="px-3 py-2 font-medium text-textDark">
-                                      ₹{payment.amount_to_pay.toLocaleString()}
+                                      ₹{(payment.approved_paid_amount ?? payment.amount_to_pay ?? 0).toLocaleString()}
                                     </td>
                                     <td className="px-3 py-2 text-textMuted">
                                       {formatDateIST(payment.date)}
@@ -418,9 +457,9 @@ export const ConferenceAdminPayments: React.FC = () => {
                                       {getStatusBadge(payment.status)}
                                     </td>
                                     <td className="px-3 py-2">
-                                      {payment.proof_path ? (
+                                      {payment.file_url || payment.proof_path ? (
                                         <a
-                                          href={`${API_BASE_URL}${payment.proof_path}`}
+                                          href={getMediaUrl(payment.file_url || payment.proof_path)}
                                           target="_blank"
                                           rel="noopener noreferrer"
                                           className="inline-flex items-center gap-1 text-primary hover:underline"
@@ -430,6 +469,31 @@ export const ConferenceAdminPayments: React.FC = () => {
                                         </a>
                                       ) : (
                                         <span className="text-textMuted">No proof</span>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      {isPendingProof(payment.status) && selectedConferenceId && (
+                                        <div className="flex gap-2">
+                                          <Button
+                                            size="sm"
+                                            onClick={() => {
+                                              setApprovePayment(payment);
+                                              setPaidAmount(String(info.balance_due ?? payment.amount_to_pay ?? ''));
+                                            }}
+                                          >
+                                            Approve
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                              setDeclinePayment(payment);
+                                              setRejectionNote('');
+                                            }}
+                                          >
+                                            Decline
+                                          </Button>
+                                        </div>
                                       )}
                                     </td>
                                   </tr>
@@ -449,6 +513,80 @@ export const ConferenceAdminPayments: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {approvePayment && selectedConferenceId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-semibold text-textDark">Approve payment proof</h3>
+            <p className="text-sm text-textMuted">
+              Enter how much was paid in this proof. Remaining balance is calculated from prior approved proofs.
+            </p>
+            <input
+              type="number"
+              min={0}
+              value={paidAmount}
+              onChange={(e) => setPaidAmount(e.target.value)}
+              className="w-full px-3 py-2 border border-borderColor rounded-md text-sm"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setApprovePayment(null)}>Cancel</Button>
+              <Button
+                disabled={approveMutation.isPending}
+                onClick={() => {
+                  const parsed = Number(paidAmount);
+                  if (!Number.isInteger(parsed) || parsed < 0) {
+                    addToast('Enter a valid paid amount', 'error');
+                    return;
+                  }
+                  approveMutation.mutate(
+                    { conferenceId: selectedConferenceId, paymentId: approvePayment.id, paidAmount: parsed },
+                    { onSuccess: () => setApprovePayment(null) },
+                  );
+                }}
+              >
+                Approve
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {declinePayment && selectedConferenceId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-semibold text-textDark">Decline payment proof</h3>
+            <textarea
+              value={rejectionNote}
+              onChange={(e) => setRejectionNote(e.target.value)}
+              placeholder="Reason for decline"
+              className="w-full px-3 py-2 border border-borderColor rounded-md text-sm min-h-[96px]"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeclinePayment(null)}>Cancel</Button>
+              <Button
+                variant="danger"
+                disabled={declineMutation.isPending}
+                onClick={() => {
+                  if (!rejectionNote.trim()) {
+                    addToast('Rejection note is required', 'error');
+                    return;
+                  }
+                  declineMutation.mutate(
+                    {
+                      conferenceId: selectedConferenceId,
+                      paymentId: declinePayment.id,
+                      rejectionNote: rejectionNote.trim(),
+                    },
+                    { onSuccess: () => setDeclinePayment(null) },
+                  );
+                }}
+              >
+                Decline
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

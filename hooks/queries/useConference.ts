@@ -100,6 +100,59 @@ export const useConferenceDelegatesOfficial = () => {
   });
 };
 
+export const useConferenceOfficialPayment = () => {
+  return useQuery({
+    queryKey: queryKeys.conference.officialPayment(),
+    queryFn: async () => api.getConferenceOfficialPayment(),
+  });
+};
+
+export const useApproveConferencePayment = () => {
+  const queryClient = useQueryClient();
+  const { addToast } = useToast();
+  return useMutation({
+    mutationFn: async ({
+      conferenceId,
+      paymentId,
+      paidAmount,
+    }: {
+      conferenceId: number;
+      paymentId: number;
+      paidAmount: number;
+    }) => api.approveConferencePaymentAdmin(conferenceId, paymentId, paidAmount),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conference.payments(vars.conferenceId) });
+      addToast('Payment approved', 'success');
+    },
+    onError: (error: Error) => {
+      addToast(error.message || 'Failed to approve payment', 'error');
+    },
+  });
+};
+
+export const useDeclineConferencePayment = () => {
+  const queryClient = useQueryClient();
+  const { addToast } = useToast();
+  return useMutation({
+    mutationFn: async ({
+      conferenceId,
+      paymentId,
+      rejectionNote,
+    }: {
+      conferenceId: number;
+      paymentId: number;
+      rejectionNote: string;
+    }) => api.declineConferencePaymentAdmin(conferenceId, paymentId, rejectionNote),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conference.payments(vars.conferenceId) });
+      addToast('Payment declined', 'success');
+    },
+    onError: (error: Error) => {
+      addToast(error.message || 'Failed to decline payment', 'error');
+    },
+  });
+};
+
 // Get conference export data
 export const useConferenceExportData = () => {
   return useQuery({
@@ -306,11 +359,12 @@ export const useUploadConferencePaymentProof = () => {
   const { addToast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ file, paymentData }: { file: File; paymentData?: { amount_to_pay: number; payment_reference?: string } }) => {
+    mutationFn: async ({ file, paymentData }: { file: File; paymentData?: { payment_reference?: string } }) => {
       return api.uploadConferencePaymentProofOfficial(file, paymentData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.conference.delegates() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.conference.officialPayment() });
       addToast('Payment proof uploaded successfully', 'success');
     },
     onError: (error: any) => {

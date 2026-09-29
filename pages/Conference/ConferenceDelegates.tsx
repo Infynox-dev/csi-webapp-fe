@@ -161,10 +161,14 @@ export const ConferenceDelegates: React.FC = () => {
     switch (status?.toUpperCase()) {
       case 'PAID':
         return <Badge variant="success">Paid</Badge>;
+      case 'PARTIAL':
+        return <Badge variant="warning">Partial</Badge>;
       case 'PENDING':
+      case 'PROOF_UPLOADED':
         return <Badge variant="warning">Pending</Badge>;
+      case 'DECLINED':
       case 'INVALID':
-        return <Badge variant="danger">Invalid</Badge>;
+        return <Badge variant="danger">Declined</Badge>;
       default:
         return <Badge variant="default">{status || 'Unknown'}</Badge>;
     }

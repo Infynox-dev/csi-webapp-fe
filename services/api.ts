@@ -381,6 +381,9 @@ class ApiService {
       max_count: rawData.max_count || 0,
       payment_status: rawData.payment_status || 'PENDING',
       amount_to_pay: rawData.amount_to_pay || 0,
+      total_paid: rawData.total_paid || 0,
+      balance_due: rawData.balance_due || 0,
+      overall_status: rawData.overall_status || 'not_submitted',
       food_preference: rawData.food_preference || { veg_count: 0, non_veg_count: 0 },
     };
   }
@@ -392,6 +395,39 @@ class ApiService {
     return httpDelete<{ message: string }>(`/conference/official/delegates/members/${memberId}`, { token });
   }
 
+  getConferenceOfficialPayment() {
+    const token = this.getToken();
+    if (!token) throw new Error('Authentication required');
+    return httpGet<{
+      official_count: number;
+      member_count: number;
+      delegate_count: number;
+      delegate_fee: number;
+      fee_owed: number;
+      total_paid: number;
+      balance_due: number;
+      payment_credit: number;
+      is_fully_paid: boolean;
+      overall_status: 'not_submitted' | 'pending' | 'declined' | 'partial' | 'paid';
+      latest_rejection_note: string | null;
+      has_blocking_pending: boolean;
+      qr_url: string | null;
+      submissions: Array<{
+        id: number;
+        file_url: string | null;
+        total_amount: number | null;
+        balance_amount: number | null;
+        approved_paid_amount: number | null;
+        status: string | null;
+        rejection_note: string | null;
+        payment_reference: string | null;
+        submitted_at: string | null;
+        reviewed_at: string | null;
+        uploaded_by_id: number | null;
+      }>;
+    }>('/conference/official/payment', { token });
+  }
+
   // POST /conference/official/payment - Submit payment for conference
   submitConferencePaymentOfficial(data: { amount_to_pay: number; payment_reference?: string }) {
     const token = this.getToken();
@@ -399,17 +435,13 @@ class ApiService {
     return httpPost<{ message: string; payment_id: number }>('/conference/official/payment', data, { token });
   }
 
-  // Upload payment proof for official conference payment (same endpoint, with file)
-  uploadConferencePaymentProofOfficial(file: File, paymentData?: { amount_to_pay: number; payment_reference?: string }) {
+  uploadConferencePaymentProofOfficial(file: File, paymentData?: { payment_reference?: string }) {
     const token = this.getToken();
     if (!token) throw new Error('Authentication required');
     const formData = new FormData();
     formData.append('file', file);
-    if (paymentData) {
-      formData.append('amount_to_pay', String(paymentData.amount_to_pay));
-      if (paymentData.payment_reference) {
-        formData.append('payment_reference', paymentData.payment_reference);
-      }
+    if (paymentData?.payment_reference) {
+      formData.append('payment_reference', paymentData.payment_reference);
     }
     return httpPostFormData<{ message: string; payment_id: number }>('/conference/official/payment', formData, token);
   }
@@ -552,18 +584,50 @@ class ApiService {
         officials: Array<{ id: number; name: string; phone: string }>;
         members: Array<{ id: number; name: string; phone: string }>;
         payments: Array<{
+          id: number;
           amount_to_pay: number;
           uploaded_by: string;
           date: string;
           status: string;
           proof_path: string | null;
+          file_url: string | null;
           payment_reference: string | null;
+          approved_paid_amount: number | null;
+          balance_amount: number | null;
+          rejection_note: string | null;
         }>;
         count_of_officials: number;
         count_of_members: number;
         amount_due: number;
+        fee_owed: number;
+        total_paid: number;
+        balance_due: number;
+        payment_credit: number;
+        overall_status: string;
+        latest_rejection_note: string | null;
+        district_id: number;
       }>;
     }>(`/admin/conference/${conferenceId}/payment-info`, { token });
+  }
+
+  approveConferencePaymentAdmin(conferenceId: number, paymentId: number, paidAmount: number) {
+    const token = this.getToken();
+    if (!token) throw new Error('Authentication required');
+    return httpPost<{ message: string; id: number; paid_amount: number; balance_amount: number | null }>(
+      `/admin/conference/${conferenceId}/payments/${paymentId}/approve`,
+      { paid_amount: paidAmount },
+      { token },
+    );
+  }
+
+  declineConferencePaymentAdmin(conferenceId: number, paymentId: number, rejectionNote: string) {
+    const token = this.getToken();
+    if (!token) throw new Error('Authentication required');
+    return httpPost<{ message: string; id: number }>(
+      `/admin/conference/${conferenceId}/payments/${paymentId}/decline`,
+      { rejection_note: rejectionNote },
+      { token },
+    );
   }
 
   // GET /admin/conference/settings - Conference module settings (delegate fee)
@@ -580,15 +644,14 @@ class ApiService {
     return httpPut<{ delegate_fee: number }>('/admin/conference/settings', data, { token });
   }
 
-  // POST /admin/conference/{conference_id}/payment-info/export - Export payment info to Excel
   exportConferencePaymentInfoAdmin(conferenceId: number) {
     const token = this.getToken();
     if (!token) throw new Error('Authentication required');
-    return httpPost<{
-      message: string;
-      conference_id: number;
-      data: Record<string, any>;
-    }>(`/admin/conference/${conferenceId}/payment-info/export`, {}, { token });
+    return httpPost<Blob>(
+      `/admin/conference/${conferenceId}/payment-info/export`,
+      {},
+      { token, asBlob: true },
+    );
   }
 
   // GET /admin/conference/officials - Get all district officials
