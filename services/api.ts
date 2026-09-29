@@ -1321,6 +1321,7 @@ class ApiService {
         residenceCountryId: m.residence_country_id || undefined,
         unitId: m.registered_user_id,
         unitName: m.unit_name,
+        districtName: m.district,
         isArchived: false,
       }));
 
@@ -4115,6 +4116,7 @@ class ApiService {
     id: number;
     name: string;
     has_official: boolean;
+    login_username?: string;
     official_id?: number;
     official_name?: string;
     official_phone?: string;

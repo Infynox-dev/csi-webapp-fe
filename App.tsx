@@ -1,7 +1,7 @@
 
 import React, { Suspense, useState } from 'react';
 import { lazyImport } from './utils/chunkLoadError';
-import { HashRouter as Router, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Route, Navigate, Routes } from 'react-router-dom';
 import { FaroRoutes } from '@grafana/faro-react';
 import { Layout, AuthLayout } from './components/Layout';
 import { ToastProvider } from './components/Toast';
@@ -166,7 +166,8 @@ const App: React.FC = () => {
         <ToastProvider>
           <Router>
             <Suspense fallback={<PageLoader />}>
-              <FaroRoutes>
+              {/* routesComponent: Faro only sets internal Routes when VITE_FARO_URL is set */}
+              <FaroRoutes routesComponent={Routes}>
               {/* Homepage with Login */}
               <Route path="/" element={<PublicHome onLogin={handleLogin} />} />
               

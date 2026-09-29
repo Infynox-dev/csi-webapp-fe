@@ -40,6 +40,7 @@ interface DistrictWithStatus {
   id: number;
   name: string;
   has_official: boolean;
+  login_username?: string;
   official_id?: number;
   official_name?: string;
   official_phone?: string;

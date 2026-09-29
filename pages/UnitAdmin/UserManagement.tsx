@@ -74,6 +74,7 @@ interface DistrictWithStatus {
   id: number;
   name: string;
   has_official: boolean;
+  login_username?: string;
   official_id?: number;
   official_name?: string;
   official_phone?: string;
@@ -695,16 +696,18 @@ export const UserManagement: React.FC = () => {
                         : <XCircle className="w-4 h-4 text-gray-300 flex-shrink-0" />}
                       <p className="font-semibold text-textDark text-sm truncate">{district.name}</p>
                     </div>
-                    {district.has_official && district.official_name ? (
+                    {district.has_official ? (
                       <div className="ml-6 space-y-0.5">
-                        <p className="text-xs text-textMuted truncate">{district.official_name}</p>
+                        {district.official_name && (
+                          <p className="text-xs text-textMuted truncate">{district.official_name}</p>
+                        )}
                         {district.official_phone && (
                           <p className="text-xs text-textMuted flex items-center gap-1">
                             <Phone className="w-3 h-3" />{district.official_phone}
                           </p>
                         )}
                         <p className="text-xs font-medium text-primary truncate">
-                          {district.official_username || district.name}
+                          {district.official_username || district.login_username || district.name}
                         </p>
                       </div>
                     ) : (

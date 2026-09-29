@@ -36,7 +36,7 @@ export const ConferenceOfficialLayout: React.FC = () => {
   const user = getAuthUser();
   
   // Use TanStack Query
-  const { data: conferenceData, isLoading: loading } = useConferenceOfficialView();
+  const { data: conferenceData, isLoading: loading, refetch } = useConferenceOfficialView();
 
   const handleLogout = () => {
     clearAuthToken();
@@ -175,7 +175,7 @@ export const ConferenceOfficialLayout: React.FC = () => {
 
         {/* Page Content */}
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
-          <Outlet context={{ conferenceData, loading, refreshData: loadConferenceData }} />
+          <Outlet context={{ conferenceData, loading, refreshData: () => { void refetch(); } }} />
         </main>
       </div>
     </div>
