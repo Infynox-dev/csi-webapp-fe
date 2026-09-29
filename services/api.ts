@@ -547,6 +547,7 @@ class ApiService {
     if (!token) throw new Error('Authentication required');
     return httpGet<{
       conference_id: number;
+      delegate_fee: number;
       district_info: Record<string, {
         officials: Array<{ id: number; name: string; phone: string }>;
         members: Array<{ id: number; name: string; phone: string }>;
@@ -560,8 +561,23 @@ class ApiService {
         }>;
         count_of_officials: number;
         count_of_members: number;
+        amount_due: number;
       }>;
     }>(`/admin/conference/${conferenceId}/payment-info`, { token });
+  }
+
+  // GET /admin/conference/settings - Conference module settings (delegate fee)
+  getConferenceSettingsAdmin() {
+    const token = this.getToken();
+    if (!token) throw new Error('Authentication required');
+    return httpGet<{ delegate_fee: number }>('/admin/conference/settings', { token });
+  }
+
+  // PUT /admin/conference/settings - Update conference module settings
+  updateConferenceSettingsAdmin(data: { delegate_fee: number }) {
+    const token = this.getToken();
+    if (!token) throw new Error('Authentication required');
+    return httpPut<{ delegate_fee: number }>('/admin/conference/settings', data, { token });
   }
 
   // POST /admin/conference/{conference_id}/payment-info/export - Export payment info to Excel

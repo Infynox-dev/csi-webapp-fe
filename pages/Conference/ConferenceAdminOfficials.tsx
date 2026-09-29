@@ -4,7 +4,7 @@ import { Plus, Edit2, Trash2, X, Users, Shield, Phone, MapPin, Search } from 'lu
 import { useToast } from '../../components/Toast';
 import { api } from '../../services/api';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { DataTable, Column } from '../../components/DataTable';
+import { DataTable, ColumnDef } from '../../components/DataTable';
 import { Portal } from '../../components/Portal';
 import { 
   useConferencesAdmin, 
@@ -189,68 +189,74 @@ export const ConferenceAdminOfficials: React.FC = () => {
     official.phone?.includes(searchTerm)
   );
 
-  const columns: Column<DistrictOfficial>[] = [
+  const columns: ColumnDef<DistrictOfficial>[] = [
     {
-      key: 'name',
+      accessorKey: 'name',
       header: 'Name',
-      render: (official) => (
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Shield className="w-4 h-4 text-primary" />
+      cell: ({ row }) => {
+        const official = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Shield className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <p className="font-medium text-textDark">{official.name}</p>
+              <p className="text-xs text-textMuted flex items-center gap-1">
+                <Phone className="w-3 h-3" /> {official.phone}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="font-medium text-textDark">{official.name}</p>
-            <p className="text-xs text-textMuted flex items-center gap-1">
-              <Phone className="w-3 h-3" /> {official.phone}
-            </p>
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
-      key: 'district',
+      accessorKey: 'district',
       header: 'District',
-      render: (official) => (
+      cell: ({ row }) => (
         <div className="flex items-center gap-1">
           <MapPin className="w-4 h-4 text-textMuted" />
-          <span>{official.district || 'N/A'}</span>
+          <span>{row.original.district || 'N/A'}</span>
         </div>
       ),
     },
     {
-      key: 'conference_official_count',
+      accessorKey: 'conference_official_count',
       header: 'Official Limit',
-      render: (official) => (
-        <Badge variant="primary">{official.conference_official_count} officials</Badge>
+      cell: ({ row }) => (
+        <Badge variant="primary">{row.original.conference_official_count ?? 0} officials</Badge>
       ),
     },
     {
-      key: 'conference_member_count',
+      accessorKey: 'conference_member_count',
       header: 'Member Limit',
-      render: (official) => (
-        <Badge variant="light">{official.conference_member_count} members</Badge>
+      cell: ({ row }) => (
+        <Badge variant="light">{row.original.conference_member_count ?? 0} members</Badge>
       ),
     },
     {
-      key: 'actions',
+      id: 'actions',
       header: 'Actions',
-      render: (official) => (
-        <div className="flex gap-2">
-          <Button variant="warning" size="sm" onClick={() => openModal('edit', official)}>
-            <Edit2 className="w-4 h-4" />
-          </Button>
-          <Button 
-            variant="danger" 
-            size="sm" 
-            onClick={() => {
-              setOfficialToDelete(official);
-              setShowDeleteConfirm(true);
-            }}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const official = row.original;
+        return (
+          <div className="flex gap-2">
+            <Button variant="warning" size="sm" onClick={() => openModal('edit', official)}>
+              <Edit2 className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => {
+                setOfficialToDelete(official);
+                setShowDeleteConfirm(true);
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -289,7 +295,7 @@ export const ConferenceAdminOfficials: React.FC = () => {
             <div>
               <p className="text-sm text-textMuted">Total Official Slots</p>
               <p className="text-2xl font-bold text-textDark">
-                {officials.reduce((sum, o) => sum + o.conference_official_count, 0)}
+                {officials.reduce((sum, o) => sum + (o.conference_official_count ?? 0), 0)}
               </p>
             </div>
           </div>
@@ -302,7 +308,7 @@ export const ConferenceAdminOfficials: React.FC = () => {
             <div>
               <p className="text-sm text-textMuted">Total Member Slots</p>
               <p className="text-2xl font-bold text-textDark">
-                {officials.reduce((sum, o) => sum + o.conference_member_count, 0)}
+                {officials.reduce((sum, o) => sum + (o.conference_member_count ?? 0), 0)}
               </p>
             </div>
           </div>
@@ -353,7 +359,7 @@ export const ConferenceAdminOfficials: React.FC = () => {
           <DataTable
             data={filteredOfficials}
             columns={columns}
-            keyField="id"
+            showSearch={false}
           />
         )}
       </Card>

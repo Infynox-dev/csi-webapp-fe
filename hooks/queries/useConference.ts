@@ -40,6 +40,31 @@ export const useConferencePaymentInfoAdmin = (conferenceId: number) => {
   });
 };
 
+// Conference module settings (delegate fee)
+export const useConferenceSettingsAdmin = () => {
+  return useQuery({
+    queryKey: queryKeys.conference.settings(),
+    queryFn: async () => api.getConferenceSettingsAdmin(),
+  });
+};
+
+export const useUpdateConferenceSettings = () => {
+  const queryClient = useQueryClient();
+  const { addToast } = useToast();
+  return useMutation({
+    mutationFn: async (data: { delegate_fee: number }) =>
+      api.updateConferenceSettingsAdmin(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conference.settings() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.conference.all });
+      addToast('Delegate fee updated', 'success');
+    },
+    onError: (err: Error) => {
+      addToast(err.message || 'Failed to update fee', 'error');
+    },
+  });
+};
+
 // Get conference officials (admin)
 export const useConferenceOfficialsAdmin = () => {
   return useQuery({
@@ -170,8 +195,8 @@ export const useAddConferenceOfficial = () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.conference.officials() });
       addToast('Official added successfully', 'success');
     },
-    onError: () => {
-      addToast('Failed to add official', 'error');
+    onError: (error: Error) => {
+      addToast(error.message || 'Failed to add official', 'error');
     },
   });
 };

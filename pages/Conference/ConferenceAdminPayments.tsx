@@ -5,7 +5,7 @@ import { CreditCard, Download, ChevronDown, ChevronRight, MapPin, Search, CheckC
 import { useToast } from '../../components/Toast';
 import { api } from '../../services/api';
 import { API_BASE_URL } from '../../services/http';
-import { useConferencesAdmin, useConferencePaymentInfoAdmin } from '../../hooks/queries';
+import { useConferencesAdmin, useConferencePaymentInfoAdmin, useConferenceSettingsAdmin, useUpdateConferenceSettings } from '../../hooks/queries';
 
 interface Conference {
   id: number;
@@ -36,10 +36,12 @@ interface PaymentDistrictInfo {
   payments: DistrictPayment[];
   count_of_officials: number;
   count_of_members: number;
+  amount_due: number;
 }
 
 interface ConferencePaymentInfo {
   conference_id: number;
+  delegate_fee: number;
   district_info: Record<string, PaymentDistrictInfo>;
 }
 
@@ -48,12 +50,22 @@ export const ConferenceAdminPayments: React.FC = () => {
   
   // Use TanStack Query
   const { data: conferences = [], isLoading: loading } = useConferencesAdmin();
+  const { data: settings } = useConferenceSettingsAdmin();
+  const updateSettings = useUpdateConferenceSettings();
   
   const [selectedConferenceId, setSelectedConferenceId] = useState<number | null>(null);
   const [expandedDistricts, setExpandedDistricts] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [exporting, setExporting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [feeInput, setFeeInput] = useState('');
+
+  // Sync fee input when settings load
+  useEffect(() => {
+    if (settings?.delegate_fee != null) {
+      setFeeInput(String(settings.delegate_fee));
+    }
+  }, [settings?.delegate_fee]);
 
   // Auto-select active conference when conferences load
   useEffect(() => {
@@ -119,19 +131,21 @@ export const ConferenceAdminPayments: React.FC = () => {
     }
   };
 
-  // Calculate totals
+  // Calculate totals (live amount_due based on current fee)
   const totals = paymentInfo ? Object.values(paymentInfo.district_info).reduce(
     (acc, district) => {
-      const districtTotal = district.payments.reduce((sum, p) => sum + p.amount_to_pay, 0);
+      const districtDue = district.amount_due ?? (
+        (district.count_of_officials + district.count_of_members) * (paymentInfo.delegate_fee || 0)
+      );
       const approved = district.payments.filter(p => 
-        p.status.toLowerCase() === 'approved' || p.status.toLowerCase() === 'verified'
+        p.status.toLowerCase() === 'approved' || p.status.toLowerCase() === 'verified' || p.status.toLowerCase() === 'paid'
       ).reduce((sum, p) => sum + p.amount_to_pay, 0);
       const pending = district.payments.filter(p => 
-        p.status.toLowerCase() === 'pending'
+        p.status.toLowerCase() === 'pending' || p.status.toLowerCase() === 'proof_uploaded'
       ).reduce((sum, p) => sum + p.amount_to_pay, 0);
       
       return {
-        total: acc.total + districtTotal,
+        total: acc.total + districtDue,
         approved: acc.approved + approved,
         pending: acc.pending + pending,
         paymentCount: acc.paymentCount + district.payments.length,
@@ -140,6 +154,15 @@ export const ConferenceAdminPayments: React.FC = () => {
     },
     { total: 0, approved: 0, pending: 0, paymentCount: 0, delegates: 0 }
   ) : null;
+
+  const handleSaveFee = () => {
+    const fee = parseInt(feeInput, 10);
+    if (Number.isNaN(fee) || fee < 0) {
+      addToast('Enter a valid fee (0 or more)', 'error');
+      return;
+    }
+    updateSettings.mutate({ delegate_fee: fee });
+  };
 
   // Filter districts by search and status
   const filteredDistricts = paymentInfo 
@@ -228,6 +251,33 @@ export const ConferenceAdminPayments: React.FC = () => {
         </div>
       </Card>
 
+      {/* Global per-delegate fee */}
+      <Card>
+        <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+          <div className="flex-1 max-w-xs">
+            <label className="block text-sm font-medium text-textDark mb-2">
+              Per delegate fee (₹)
+            </label>
+            <p className="text-xs text-textMuted mb-2">
+              Applies to all conferences. Amount = (officials + members) × this rate.
+            </p>
+            <input
+              type="number"
+              min={0}
+              value={feeInput}
+              onChange={(e) => setFeeInput(e.target.value)}
+              className="w-full px-3 py-2.5 bg-white text-textDark border border-borderColor rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            />
+          </div>
+          <Button
+            onClick={handleSaveFee}
+            disabled={updateSettings.isPending || feeInput === String(settings?.delegate_fee ?? '')}
+          >
+            {updateSettings.isPending ? 'Saving...' : 'Save fee'}
+          </Button>
+        </div>
+      </Card>
+
       {/* Summary Stats */}
       {totals && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
@@ -287,9 +337,11 @@ export const ConferenceAdminPayments: React.FC = () => {
         ) : (
           <div className="space-y-3">
             {filteredDistricts.map(([district, info]) => {
-              const districtTotal = info.payments.reduce((sum, p) => sum + p.amount_to_pay, 0);
+              const districtTotal = info.amount_due ?? (
+                (info.count_of_officials + info.count_of_members) * (paymentInfo?.delegate_fee || 0)
+              );
               const approvedTotal = info.payments
-                .filter(p => p.status.toLowerCase() === 'approved' || p.status.toLowerCase() === 'verified')
+                .filter(p => p.status.toLowerCase() === 'approved' || p.status.toLowerCase() === 'verified' || p.status.toLowerCase() === 'paid')
                 .reduce((sum, p) => sum + p.amount_to_pay, 0);
               
               return (

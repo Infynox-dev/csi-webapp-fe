@@ -84,9 +84,8 @@ export const ConferencePayment: React.FC = () => {
       return;
     }
 
-    // Calculate total amount
-    const totalAmount = (conferenceData?.unit_delegates?.length || 0) * (conferenceData?.conference?.registration_fee || 0);
-    
+    const totalAmount = delegatesInfo?.amount_to_pay ?? 0;
+
     uploadPaymentMutation.mutate(
       {
         file: selectedFile,
