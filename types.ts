@@ -523,6 +523,7 @@ export interface UnitMember {
   residenceCountryId?: number;
   unitId: number;
   unitName: string;
+  districtName?: string;
   isArchived: boolean;
 }
 

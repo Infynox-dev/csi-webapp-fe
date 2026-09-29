@@ -38,7 +38,8 @@ interface UnitMember {
   number: string;
   gender: string;
   dob: string;
-  unit_name?: string;
+  unitName?: string;
+  districtName?: string;
 }
 
 export const ConferenceAdminOfficials: React.FC = () => {
@@ -448,7 +449,12 @@ export const ConferenceAdminOfficials: React.FC = () => {
                               className="w-full px-3 py-2 text-left hover:bg-bgLight border-b border-borderColor last:border-b-0"
                             >
                               <p className="font-medium text-textDark text-sm">{member.name}</p>
-                              <p className="text-xs text-textMuted">{member.number} • {member.unit_name || 'Unknown Unit'}</p>
+                              <p className="text-xs text-textMuted">
+                                {member.number}
+                                {' • '}
+                                {member.unitName || 'Unknown Unit'}
+                                {member.districtName ? ` • ${member.districtName}` : ''}
+                              </p>
                             </button>
                           ))}
                         </div>
@@ -458,7 +464,12 @@ export const ConferenceAdminOfficials: React.FC = () => {
                         <div className="mt-2 p-3 bg-success/10 border border-success/20 rounded-lg flex items-center justify-between">
                           <div>
                             <p className="font-medium text-textDark text-sm">{selectedMember.name}</p>
-                            <p className="text-xs text-textMuted">{selectedMember.number}</p>
+                            <p className="text-xs text-textMuted">
+                              {selectedMember.number}
+                              {' • '}
+                              {selectedMember.unitName || 'Unknown Unit'}
+                              {selectedMember.districtName ? ` • ${selectedMember.districtName}` : ''}
+                            </p>
                           </div>
                           <button
                             type="button"
