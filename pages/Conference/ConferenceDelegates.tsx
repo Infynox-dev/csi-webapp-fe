@@ -183,6 +183,7 @@ export const ConferenceDelegates: React.FC = () => {
   const canAddDelegate = conferenceActive && delegateCount < memberLimit;
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [memberPage, setMemberPage] = useState(1);
   const [pickerSearchTerm, setPickerSearchTerm] = useState('');
   const [officialQuery, setOfficialQuery] = useState('');
   const [officialGender, setOfficialGender] = useState('all');
@@ -217,6 +218,13 @@ export const ConferenceDelegates: React.FC = () => {
   };
 
   const filteredMembers = filterMembersByQuery(availableMembers, searchTerm);
+  const memberPageSize = 10;
+  const memberPageCount = Math.max(1, Math.ceil(filteredMembers.length / memberPageSize));
+  const memberPageSafe = Math.min(memberPage, memberPageCount);
+  const pagedMembers = filteredMembers.slice(
+    (memberPageSafe - 1) * memberPageSize,
+    memberPageSafe * memberPageSize,
+  );
   const pickerMembers = filterMembersByQuery(availableMembers, pickerSearchTerm);
   const filteredOfficials = officials.filter((row) => matchesAttendee(row, officialQuery, officialGender, officialFood));
   const filteredDelegates = delegates.filter((row) => matchesAttendee(row, delegateQuery, delegateGender, delegateFood));
@@ -450,14 +458,17 @@ export const ConferenceDelegates: React.FC = () => {
               type="text"
               placeholder="Search by name, phone, or unit..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setMemberPage(1);
+              }}
               className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
             />
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="max-h-96 overflow-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
@@ -469,14 +480,14 @@ export const ConferenceDelegates: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredMembers.length === 0 ? (
+              {pagedMembers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
                     {searchTerm ? 'No members found matching your search' : 'No available members'}
                   </td>
                 </tr>
               ) : (
-                filteredMembers.slice(0, 50).map((member) => (
+                pagedMembers.map((member) => (
                   <tr key={member.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-800">{member.name}</td>
                     <td className="px-4 py-3 text-gray-600">{member.phone || '-'}</td>
@@ -500,11 +511,34 @@ export const ConferenceDelegates: React.FC = () => {
             </tbody>
           </table>
         </div>
-        {filteredMembers.length > 50 && (
-          <div className="p-3 text-center text-xs text-gray-500 border-t">
-            Showing 50 of {filteredMembers.length} members. Use search to find others.
+        <div className="px-4 py-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <p className="text-xs text-gray-500">
+            {filteredMembers.length === 0
+              ? '0 members'
+              : `${(memberPageSafe - 1) * memberPageSize + 1}–${Math.min(memberPageSafe * memberPageSize, filteredMembers.length)} of ${filteredMembers.length}`}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={memberPageSafe <= 1}
+              onClick={() => setMemberPage(memberPageSafe - 1)}
+            >
+              Previous
+            </Button>
+            <span className="text-xs text-gray-500">
+              Page {memberPageSafe} of {memberPageCount}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={memberPageSafe >= memberPageCount}
+              onClick={() => setMemberPage(memberPageSafe + 1)}
+            >
+              Next
+            </Button>
           </div>
-        )}
+        </div>
       </Card>
 
       {showAddDialog && (
