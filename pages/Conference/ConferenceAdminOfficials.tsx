@@ -225,10 +225,20 @@ export const ConferenceAdminOfficials: React.FC = () => {
         addToast("Please select a member", "error");
         return;
       }
-      addOfficialMutation.mutate(
-        { conference_id: formData.conference_id, member_id: selectedMember.id },
-        { onSuccess: closeModal }
-      );
+      const payload: {
+        conference_id: number;
+        member_id: number;
+        conference_official_count?: number;
+        conference_member_count?: number;
+      } = {
+        conference_id: formData.conference_id,
+        member_id: selectedMember.id,
+      };
+      if (showLimitsOnAdd) {
+        payload.conference_official_count = formData.conference_official_count;
+        payload.conference_member_count = formData.conference_member_count;
+      }
+      addOfficialMutation.mutate(payload, { onSuccess: closeModal });
     } else if (modalType === 'edit' && selectedOfficial) {
       updateOfficialMutation.mutate(
         {
@@ -259,6 +269,21 @@ export const ConferenceAdminOfficials: React.FC = () => {
     official.district?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     official.phone?.includes(searchTerm)
   );
+
+  const selectedDistrictName =
+    districts.find((d) => d.id === selectedDistrictId)?.name ?? '';
+
+  const districtAlreadyRegisteredForConference =
+    modalType === 'add' &&
+    formData.conference_id > 0 &&
+    selectedDistrictName !== '' &&
+    officials.some(
+      (o) =>
+        o.conference_id === formData.conference_id &&
+        o.district?.toLowerCase() === selectedDistrictName.toLowerCase(),
+    );
+
+  const showLimitsOnAdd = modalType === 'add' && !districtAlreadyRegisteredForConference;
 
   const columns: ColumnDef<DistrictOfficial>[] = [
     {
@@ -589,36 +614,44 @@ export const ConferenceAdminOfficials: React.FC = () => {
                   </>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-textDark mb-1.5">
-                      Official Limit <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.conference_official_count}
-                      onChange={(e) => setFormData({ ...formData, conference_official_count: parseInt(e.target.value) })}
-                      min="1"
-                      className="w-full px-3 py-2 bg-white text-textDark border border-borderColor rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm"
-                      required
-                    />
-                    <p className="text-xs text-textMuted mt-1">Max officials allowed</p>
+                {(modalType === 'edit' || showLimitsOnAdd) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-textDark mb-1.5">
+                        Official Limit <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.conference_official_count}
+                        onChange={(e) => setFormData({ ...formData, conference_official_count: parseInt(e.target.value) })}
+                        min="1"
+                        className="w-full px-3 py-2 bg-white text-textDark border border-borderColor rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm"
+                        required
+                      />
+                      <p className="text-xs text-textMuted mt-1">Max officials allowed (district-wide)</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-textDark mb-1.5">
+                        Member Limit <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.conference_member_count}
+                        onChange={(e) => setFormData({ ...formData, conference_member_count: parseInt(e.target.value) })}
+                        min="1"
+                        className="w-full px-3 py-2 bg-white text-textDark border border-borderColor rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm"
+                        required
+                      />
+                      <p className="text-xs text-textMuted mt-1">Max members allowed (district-wide)</p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-textDark mb-1.5">
-                      Member Limit <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.conference_member_count}
-                      onChange={(e) => setFormData({ ...formData, conference_member_count: parseInt(e.target.value) })}
-                      min="1"
-                      className="w-full px-3 py-2 bg-white text-textDark border border-borderColor rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm"
-                      required
-                    />
-                    <p className="text-xs text-textMuted mt-1">Max members allowed</p>
-                  </div>
-                </div>
+                )}
+
+                {modalType === 'add' && districtAlreadyRegisteredForConference && (
+                  <p className="text-xs text-textMuted">
+                    This district already has slot limits for the selected conference. Choose a member to reassign the official, or use Edit on the table to change limits.
+                  </p>
+                )}
 
                 {/* Modal Footer */}
                 <div className="flex justify-end gap-2 pt-4 border-t border-borderColor">

@@ -170,7 +170,7 @@ export const ConferenceDelegates: React.FC = () => {
   const removeDelegateMutation = useRemoveDelegate();
   const updatePreferencesMutation = useUpdateAttendeePreferences();
 
-  const loading = viewLoading || delegatesLoading;
+  const loading = (viewLoading && !viewData) || (delegatesLoading && !delegatesData);
   const availableMembers = viewData?.available_members || [];
   const conferenceActive = viewData?.conference?.status === 'Active';
   const officialLimit = delegatesData?.official_limit ?? viewData?.official_limit ?? 0;
@@ -200,9 +200,9 @@ export const ConferenceDelegates: React.FC = () => {
   const [foodPreference, setFoodPreference] = useState<FoodPref>('veg');
   const [accommodationRequired, setAccommodationRequired] = useState<StayPref>(false);
 
-  const refreshData = () => {
-    refetchView();
-    refetchDelegates();
+  const refreshData = async () => {
+    await refetchDelegates();
+    void refetchView();
     context?.refreshData?.();
   };
 
@@ -256,9 +256,9 @@ export const ConferenceDelegates: React.FC = () => {
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
+          await refreshData();
           closeAddDialog();
-          refreshData();
         },
       },
     );
@@ -273,10 +273,10 @@ export const ConferenceDelegates: React.FC = () => {
         accommodation_required: accommodationRequired,
       },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
+          await refreshData();
           setShowEditDialog(false);
           setSelectedAttendee(null);
-          refreshData();
         },
       },
     );
@@ -285,10 +285,10 @@ export const ConferenceDelegates: React.FC = () => {
   const handleRemove = () => {
     if (!selectedAttendee) return;
     removeDelegateMutation.mutate(selectedAttendee.id, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        await refreshData();
         setShowRemoveDialog(false);
         setSelectedAttendee(null);
-        refreshData();
       },
     });
   };
@@ -313,23 +313,11 @@ export const ConferenceDelegates: React.FC = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 overflow-x-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Manage Delegates</h1>
-          <p className="text-sm sm:text-base text-gray-500 mt-1">
-            {viewData?.district} District — add officials and delegates within the conference limits
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Button onClick={() => openAddDialog('official')} disabled={!canAddOfficial} className="w-full sm:w-auto">
-            <UserCog className="w-4 h-4 mr-2" />
-            Add Official
-          </Button>
-          <Button onClick={() => openAddDialog('delegate')} disabled={!canAddDelegate} className="w-full sm:w-auto">
-            <UserPlus className="w-4 h-4 mr-2" />
-            Add Delegate
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Manage Delegates</h1>
+        <p className="text-sm sm:text-base text-gray-500 mt-1">
+          {viewData?.district} District — add officials and delegates within the conference limits
+        </p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -420,6 +408,9 @@ export const ConferenceDelegates: React.FC = () => {
           setSelectedAttendee(row);
           setShowRemoveDialog(true);
         }}
+        addLabel="Add Official"
+        addDisabled={!canAddOfficial}
+        onAdd={() => openAddDialog('official')}
       />
 
       <AttendeeTable
@@ -649,14 +640,25 @@ const AttendeeTable: React.FC<{
   canEdit: boolean;
   onEdit: (row: Attendee) => void;
   onRemove: (row: Attendee) => void;
-}> = ({ title, hint, icon, rows, empty, query, gender, food, onQuery, onGender, onFood, canEdit, onEdit, onRemove }) => (
+  addLabel?: string;
+  addDisabled?: boolean;
+  onAdd?: () => void;
+}> = ({ title, hint, icon, rows, empty, query, gender, food, onQuery, onGender, onFood, canEdit, onEdit, onRemove, addLabel, addDisabled, onAdd }) => (
   <Card>
-    <div className="p-3 sm:p-4 border-b border-gray-100">
-      <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
-        {icon}
-        {title}
-      </h3>
-      <p className="text-xs sm:text-sm text-gray-500 mt-1">{hint}</p>
+    <div className="p-3 sm:p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div>
+        <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
+          {icon}
+          {title}
+        </h3>
+        <p className="text-xs sm:text-sm text-gray-500 mt-1">{hint}</p>
+      </div>
+      {onAdd && addLabel && (
+        <Button onClick={onAdd} disabled={addDisabled} className="w-full sm:w-auto flex-shrink-0">
+          <UserPlus className="w-4 h-4 mr-2" />
+          {addLabel}
+        </Button>
+      )}
     </div>
     <div className="p-3 sm:p-4 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-2">
       <div className="relative sm:col-span-1">

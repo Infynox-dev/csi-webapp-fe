@@ -86,6 +86,7 @@ export const useConferenceOfficialView = () => {
       const data = await api.getConferenceOfficialView();
       return data;
     },
+    staleTime: 0,
   });
 };
 
@@ -97,6 +98,7 @@ export const useConferenceDelegatesOfficial = () => {
       const data = await api.getConferenceDelegatesOfficial();
       return data;
     },
+    staleTime: 0,
   });
 };
 
@@ -241,7 +243,12 @@ export const useAddConferenceOfficial = () => {
   const { addToast } = useToast();
 
   return useMutation({
-    mutationFn: async (data: { conference_id: number; member_id: number }) => {
+    mutationFn: async (data: {
+      conference_id: number;
+      member_id: number;
+      conference_official_count?: number;
+      conference_member_count?: number;
+    }) => {
       return api.addConferenceOfficialAdmin(data);
     },
     onSuccess: () => {
@@ -368,8 +375,9 @@ export const useUpdateAttendeePreferences = () => {
       food_preference: 'veg' | 'non-veg' | null;
       accommodation_required: boolean | null;
     }) => api.updateConferenceAttendeePreferences(delegateId, { food_preference, accommodation_required }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.conference.delegates() });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.conference.delegates() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.conference.officialView() });
       addToast('Preferences updated', 'success');
     },
     onError: (error: any) => {

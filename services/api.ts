@@ -690,7 +690,12 @@ class ApiService {
   }
 
   // POST /admin/conference/officials - Add a district official
-  addConferenceOfficialAdmin(data: { conference_id: number; member_id: number }) {
+  addConferenceOfficialAdmin(data: {
+    conference_id: number;
+    member_id: number;
+    conference_official_count?: number;
+    conference_member_count?: number;
+  }) {
     const token = this.getToken();
     if (!token) throw new Error('Authentication required');
     return httpPost<{

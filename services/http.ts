@@ -217,6 +217,7 @@ export const http = async <T = any>(
   try {
     const response = await fetch(finalUrl, {
       ...init,
+      cache: 'no-store',
       headers: mergedHeaders,
       signal: controller.signal,
     });
@@ -244,6 +245,7 @@ export const http = async <T = any>(
           
           const retryResponse = await fetch(finalUrl, {
             ...init,
+            cache: 'no-store',
             headers: retryHeaders,
             signal: retryController.signal,
           });
