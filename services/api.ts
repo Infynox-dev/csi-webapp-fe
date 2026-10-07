@@ -103,7 +103,7 @@ import {
   ApproveRegistrationPaymentResponse,
   RemovalPaymentImpactPreview,
 } from '../types';
-import { httpGet, httpPost, httpPut, httpDelete, httpPostFormData } from './http';
+import { httpGet, httpPost, httpPut, httpPatch, httpDelete, httpPostFormData } from './http';
 
 class ApiService {
   // -------------------------
@@ -339,17 +339,23 @@ class ApiService {
         registration_fee: 0, // Not in API response
       },
       unit_delegates: [], // Will be fetched separately via getConferenceDelegatesOfficial
-      registration_open: rawData.conference?.status === 'Active' && rawData.rem_count > 0,
+      registration_open:
+        rawData.conference?.status === 'Active' &&
+        ((rawData.rem_count || 0) > 0 || (rawData.official_rem_count || 0) > 0),
       available_members: (rawData.unit_members || []).map((m: any) => ({
         id: m.id,
         name: m.name,
         gender: m.gender,
         phone: m.number,
+        unitName: m.unit_name ?? '',
       })),
       rem_count: rawData.rem_count || 0,
       max_count: rawData.max_count || 0,
       allowed_count: rawData.allowed_count || 0,
       member_count: rawData.member_count || 0,
+      official_limit: rawData.official_limit || 0,
+      official_count: rawData.official_count || 0,
+      official_rem_count: rawData.official_rem_count || 0,
       district: rawData.district || '',
     };
   }
@@ -380,7 +386,33 @@ class ApiService {
       balance_due: rawData.balance_due || 0,
       overall_status: rawData.overall_status || 'not_submitted',
       food_preference: rawData.food_preference || { veg_count: 0, non_veg_count: 0 },
+      official_count: rawData.official_count || 0,
+      official_limit: rawData.official_limit || 0,
+      member_count: rawData.member_count || 0,
+      member_limit: rawData.member_limit || 0,
     };
+  }
+
+  updateConferenceAttendeePreferences(
+    delegateId: number,
+    data: {
+      food_preference: 'veg' | 'non-veg' | null;
+      accommodation_required: boolean | null;
+    },
+  ) {
+    const token = this.getToken();
+    if (!token) throw new Error('Authentication required');
+    return httpPatch<{ message: string }>(
+      `/conference/official/delegates/${delegateId}`,
+      data,
+      { token },
+    );
+  }
+
+  removeConferenceAttendee(delegateId: number) {
+    const token = this.getToken();
+    if (!token) throw new Error('Authentication required');
+    return httpDelete<{ message: string }>(`/conference/official/delegates/${delegateId}`, { token });
   }
 
   // DELETE /conference/official/delegates/members/{member_id} - Remove a delegate
@@ -695,6 +727,7 @@ class ApiService {
       number: string;
       gender: string;
       dob: string;
+      unit_name?: string | null;
     }>>(`/admin/conference/${conferenceId}/districts/${districtId}/members`, { token });
   }
 

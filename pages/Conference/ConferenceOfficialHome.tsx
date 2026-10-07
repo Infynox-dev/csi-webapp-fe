@@ -95,11 +95,11 @@ export const ConferenceOfficialHome: React.FC = () => {
         <div className="flex flex-wrap gap-4 text-sm mt-4">
           <div className="flex items-center bg-white/20 rounded-full px-3 py-1">
             <Target className="w-4 h-4 mr-2" />
-            Allowed: {allowed_count} delegates
+            Allowed: {localData.official_limit ?? 0} officials, {allowed_count} delegates
           </div>
           <div className="flex items-center bg-white/20 rounded-full px-3 py-1">
             <Users className="w-4 h-4 mr-2" />
-            Registered: {member_count} / {max_count}
+            Registered: {localData.official_count ?? 0} officials, {member_count} delegates
           </div>
           <div className="flex items-center bg-white/20 rounded-full px-3 py-1">
             <TrendingUp className="w-4 h-4 mr-2" />

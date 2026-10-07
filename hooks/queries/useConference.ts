@@ -300,13 +300,13 @@ export const useAddDelegate = () => {
   const { addToast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ memberId, data }: { memberId: number; data?: { member_id: number; food_preference?: 'veg' | 'non-veg'; accommodation_required?: boolean } }) => {
+    mutationFn: async ({ memberId, data }: { memberId: number; data?: { member_id: number; role?: 'official' | 'delegate'; food_preference?: 'veg' | 'non-veg' | null; accommodation_required?: boolean | null } }) => {
       return api.addConferenceDelegateOfficial(memberId, data);
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.conference.delegates() });
       queryClient.invalidateQueries({ queryKey: queryKeys.conference.officialView() });
-      addToast('Delegate added successfully', 'success');
+      addToast(vars.data?.role === 'official' ? 'Official added' : 'Delegate added', 'success');
     },
     onError: (error: any) => {
       addToast(error.message || 'Failed to add delegate', 'error');
@@ -320,13 +320,13 @@ export const useRemoveDelegate = () => {
   const { addToast } = useToast();
 
   return useMutation({
-    mutationFn: async (memberId: number) => {
-      return api.removeConferenceDelegateOfficial(memberId);
+    mutationFn: async (delegateId: number) => {
+      return api.removeConferenceAttendee(delegateId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.conference.delegates() });
       queryClient.invalidateQueries({ queryKey: queryKeys.conference.officialView() });
-      addToast('Delegate removed successfully', 'success');
+      addToast('Removed successfully', 'success');
     },
     onError: (error: any) => {
       addToast(error.message || 'Failed to remove delegate', 'error');
@@ -350,6 +350,30 @@ export const useUploadConferencePaymentProof = () => {
     },
     onError: (error: any) => {
       addToast(error.message || 'Failed to upload payment proof', 'error');
+    },
+  });
+};
+
+export const useUpdateAttendeePreferences = () => {
+  const queryClient = useQueryClient();
+  const { addToast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      delegateId,
+      food_preference,
+      accommodation_required,
+    }: {
+      delegateId: number;
+      food_preference: 'veg' | 'non-veg' | null;
+      accommodation_required: boolean | null;
+    }) => api.updateConferenceAttendeePreferences(delegateId, { food_preference, accommodation_required }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conference.delegates() });
+      addToast('Preferences updated', 'success');
+    },
+    onError: (error: any) => {
+      addToast(error.message || 'Failed to update preferences', 'error');
     },
   });
 };

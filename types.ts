@@ -160,8 +160,9 @@ export interface ConferenceDelegate {
 
 export interface ConferenceDelegateCreate {
   member_id: number;
-  food_preference?: 'veg' | 'non-veg';
-  accommodation_required?: boolean;
+  role?: 'official' | 'delegate';
+  food_preference?: 'veg' | 'non-veg' | null;
+  accommodation_required?: boolean | null;
 }
 
 export interface ConferenceFoodPreference {
@@ -221,8 +222,15 @@ export interface ConferenceUnitMember {
 // Delegate Official
 export interface ConferenceDelegateOfficial {
   id: number;
+  member_id?: number | null;
   name: string;
   phone: string;
+  number?: string;
+  gender?: string | null;
+  unit_name?: string | null;
+  food_preference?: 'veg' | 'non-veg' | null;
+  accommodation_required?: boolean | null;
+  removable?: boolean;
 }
 
 // Food Preference
@@ -288,12 +296,16 @@ export interface ConferenceOfficialView {
     name: string;
     gender: string;
     phone?: string;
+    unitName?: string;
   }>;
   // Additional fields from actual API
   rem_count: number;
   max_count: number;
   allowed_count: number;
   member_count: number;
+  official_limit?: number;
+  official_count?: number;
+  official_rem_count?: number;
   district: string;
 }
 

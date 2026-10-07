@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { 
-  Users, 
-  UserPlus, 
-  Trash2, 
+import {
+  Users,
+  UserPlus,
+  Trash2,
   Search,
   AlertCircle,
   CheckCircle,
@@ -13,17 +13,19 @@ import {
   UserCog,
   Home,
   Leaf,
-  Drumstick
+  Drumstick,
+  Pencil,
 } from 'lucide-react';
 import { Card, Button, Badge, Skeleton } from '../../components/ui';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { ConferenceOfficialView, ConferenceDelegatesResponse } from '../../types';
-import { useToast } from '../../components/Toast';
-import { 
-  useConferenceOfficialView, 
-  useConferenceDelegatesOfficial, 
-  useAddDelegate, 
-  useRemoveDelegate 
+import { Portal } from '../../components/Portal';
+import { ConferenceOfficialView } from '../../types';
+import {
+  useConferenceOfficialView,
+  useConferenceDelegatesOfficial,
+  useAddDelegate,
+  useRemoveDelegate,
+  useUpdateAttendeePreferences,
 } from '../../hooks/queries';
 
 interface ConferenceContext {
@@ -37,68 +39,166 @@ interface AvailableMember {
   name: string;
   gender: string;
   phone?: string;
+  unitName?: string;
 }
 
-// Delegate member type from API
-interface DelegateMember {
+type FoodPref = 'veg' | 'non-veg' | null;
+type StayPref = boolean | null;
+type AttendeeRole = 'official' | 'delegate';
+
+interface Attendee {
   id: number;
   name: string;
-  number: string;
-  gender: string;
+  phone?: string;
+  number?: string;
+  gender?: string | null;
+  unit_name?: string | null;
+  food_preference?: FoodPref;
+  accommodation_required?: StayPref;
+  removable?: boolean;
 }
 
-// Delegate official type from API
-interface DelegateOfficial {
-  id: number;
-  name: string;
-  phone: string;
-}
+const genderCode = (gender?: string | null) => {
+  if (!gender) return '';
+  const value = gender.toLowerCase();
+  if (gender === 'M' || value === 'male') return 'M';
+  if (gender === 'F' || value === 'female') return 'F';
+  return gender;
+};
+
+const genderLabel = (gender?: string | null) => {
+  const code = genderCode(gender);
+  if (code === 'M') return 'Male';
+  if (code === 'F') return 'Female';
+  return gender || '-';
+};
+
+const foodLabel = (food?: FoodPref) => {
+  if (food === 'veg') return 'Veg';
+  if (food === 'non-veg') return 'Non-Veg';
+  return 'Not set';
+};
+
+const stayLabel = (stay?: StayPref) => {
+  if (stay === true) return 'Yes';
+  if (stay === false) return 'No';
+  return 'Not set';
+};
+
+const matchesAttendee = (row: Attendee, query: string, gender: string, food: string) => {
+  const q = query.trim().toLowerCase();
+  const phone = row.phone || row.number || '';
+  const text =
+    !q ||
+    row.name.toLowerCase().includes(q) ||
+    phone.includes(query.trim()) ||
+    (row.unit_name || '').toLowerCase().includes(q);
+  const genderOk = gender === 'all' || genderCode(row.gender) === gender;
+  const foodOk =
+    food === 'all' ||
+    (food === 'unset' ? !row.food_preference : row.food_preference === food);
+  return text && genderOk && foodOk;
+};
+
+const PreferenceFields: React.FC<{
+  food: FoodPref;
+  stay: StayPref;
+  onFood: (value: FoodPref) => void;
+  onStay: (value: StayPref) => void;
+}> = ({ food, stay, onFood, onStay }) => (
+  <>
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        <Utensils className="w-4 h-4 inline mr-2" />
+        Food Preference
+      </label>
+      <div className="grid grid-cols-3 gap-2">
+        {([
+          ['veg', 'Veg', 'border-green-500 bg-green-50 text-green-700'],
+          ['non-veg', 'Non-Veg', 'border-red-500 bg-red-50 text-red-700'],
+          [null, 'Not set', 'border-gray-500 bg-gray-50 text-gray-700'],
+        ] as const).map(([value, label, active]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => onFood(value)}
+            className={`p-3 rounded-lg border-2 text-sm font-medium ${
+              food === value ? active : 'border-gray-200 text-gray-600'
+            }`}
+          >
+            {value === 'veg' && <Leaf className="w-4 h-4 inline mr-1" />}
+            {value === 'non-veg' && <Drumstick className="w-4 h-4 inline mr-1" />}
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        <Home className="w-4 h-4 inline mr-2" />
+        Accommodation Required?
+      </label>
+      <div className="grid grid-cols-3 gap-2">
+        {([
+          [true, 'Yes'],
+          [false, 'No'],
+          [null, 'Not set'],
+        ] as const).map(([value, label]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => onStay(value)}
+            className={`p-3 rounded-lg border-2 text-sm font-medium ${
+              stay === value
+                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                : 'border-gray-200 text-gray-600'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  </>
+);
 
 export const ConferenceDelegates: React.FC = () => {
-  const { addToast } = useToast();
   const context = useOutletContext<ConferenceContext>();
-  
-  // Use TanStack Query
   const { data: viewData, isLoading: viewLoading, refetch: refetchView } = useConferenceOfficialView();
   const { data: delegatesData, isLoading: delegatesLoading, refetch: refetchDelegates } = useConferenceDelegatesOfficial();
   const addDelegateMutation = useAddDelegate();
   const removeDelegateMutation = useRemoveDelegate();
-  
+  const updatePreferencesMutation = useUpdateAttendeePreferences();
+
   const loading = viewLoading || delegatesLoading;
-  
-  // Extract data from queries
   const availableMembers = viewData?.available_members || [];
-  const registrationOpen = viewData?.registration_open || false;
-  const conferenceInfo = viewData ? {
-    rem_count: viewData.rem_count,
-    max_count: viewData.max_count,
-    allowed_count: viewData.allowed_count,
-    member_count: viewData.member_count,
-    district: viewData.district,
-  } : null;
-  
-  const delegateMembers = delegatesData?.delegate_members || [];
-  const delegateOfficials = delegatesData?.delegate_officials || [];
-  const delegatesInfo = delegatesData ? {
-    delegates_count: delegatesData.delegates_count,
-    max_count: delegatesData.max_count,
-    payment_status: delegatesData.payment_status,
-    amount_to_pay: delegatesData.amount_to_pay,
-    food_preference: delegatesData.food_preference,
-  } : null;
-  
+  const conferenceActive = viewData?.conference?.status === 'Active';
+  const officialLimit = delegatesData?.official_limit ?? viewData?.official_limit ?? 0;
+  const memberLimit = delegatesData?.member_limit ?? viewData?.allowed_count ?? 0;
+  const officials = (delegatesData?.delegate_officials || []) as Attendee[];
+  const delegates = (delegatesData?.delegate_members || []) as Attendee[];
+  const officialCount = officials.length;
+  const delegateCount = delegates.length;
+  const canAddOfficial = conferenceActive && officialCount < officialLimit;
+  const canAddDelegate = conferenceActive && delegateCount < memberLimit;
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [delegatesSearchTerm, setDelegatesSearchTerm] = useState('');
-  
-  // Dialog states
+  const [pickerSearchTerm, setPickerSearchTerm] = useState('');
+  const [officialQuery, setOfficialQuery] = useState('');
+  const [officialGender, setOfficialGender] = useState('all');
+  const [officialFood, setOfficialFood] = useState('all');
+  const [delegateQuery, setDelegateQuery] = useState('');
+  const [delegateGender, setDelegateGender] = useState('all');
+  const [delegateFood, setDelegateFood] = useState('all');
+
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [addRole, setAddRole] = useState<AttendeeRole>('delegate');
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedMember, setSelectedMember] = useState<AvailableMember | null>(null);
-  const [selectedDelegate, setSelectedDelegate] = useState<DelegateMember | null>(null);
-  
-  // Add delegate form states
-  const [foodPreference, setFoodPreference] = useState<'veg' | 'non-veg'>('veg');
-  const [accommodationRequired, setAccommodationRequired] = useState(false);
+  const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(null);
+  const [foodPreference, setFoodPreference] = useState<FoodPref>('veg');
+  const [accommodationRequired, setAccommodationRequired] = useState<StayPref>(false);
 
   const refreshData = () => {
     refetchView();
@@ -106,72 +206,91 @@ export const ConferenceDelegates: React.FC = () => {
     context?.refreshData?.();
   };
 
-  const handleAddDelegate = async () => {
+  const filterMembersByQuery = (members: AvailableMember[], query: string) => {
+    const q = query.toLowerCase();
+    return members.filter(
+      (member) =>
+        member.name.toLowerCase().includes(q) ||
+        member.phone?.includes(query) ||
+        (member.unitName ?? '').toLowerCase().includes(q),
+    );
+  };
+
+  const filteredMembers = filterMembersByQuery(availableMembers, searchTerm);
+  const pickerMembers = filterMembersByQuery(availableMembers, pickerSearchTerm);
+  const filteredOfficials = officials.filter((row) => matchesAttendee(row, officialQuery, officialGender, officialFood));
+  const filteredDelegates = delegates.filter((row) => matchesAttendee(row, delegateQuery, delegateGender, delegateFood));
+
+  const openAddDialog = (role: AttendeeRole, member?: AvailableMember) => {
+    setAddRole(role);
+    setSelectedMember(member ?? null);
+    setPickerSearchTerm('');
+    setFoodPreference('veg');
+    setAccommodationRequired(false);
+    setShowAddDialog(true);
+  };
+
+  const closeAddDialog = () => {
+    setShowAddDialog(false);
+    setSelectedMember(null);
+    setPickerSearchTerm('');
+  };
+
+  const openEditDialog = (row: Attendee) => {
+    setSelectedAttendee(row);
+    setFoodPreference(row.food_preference ?? null);
+    setAccommodationRequired(row.accommodation_required ?? null);
+    setShowEditDialog(true);
+  };
+
+  const handleAdd = () => {
     if (!selectedMember) return;
-    
     addDelegateMutation.mutate(
       {
         memberId: selectedMember.id,
         data: {
           member_id: selectedMember.id,
+          role: addRole,
           food_preference: foodPreference,
           accommodation_required: accommodationRequired,
         },
       },
       {
         onSuccess: () => {
-          setShowAddDialog(false);
-          setSelectedMember(null);
-          setFoodPreference('veg');
-          setAccommodationRequired(false);
+          closeAddDialog();
           refreshData();
         },
-      }
+      },
     );
   };
 
-  const handleRemoveDelegate = async () => {
-    if (!selectedDelegate) return;
-    
-    removeDelegateMutation.mutate(selectedDelegate.id, {
+  const handleSavePreferences = () => {
+    if (!selectedAttendee) return;
+    updatePreferencesMutation.mutate(
+      {
+        delegateId: selectedAttendee.id,
+        food_preference: foodPreference,
+        accommodation_required: accommodationRequired,
+      },
+      {
+        onSuccess: () => {
+          setShowEditDialog(false);
+          setSelectedAttendee(null);
+          refreshData();
+        },
+      },
+    );
+  };
+
+  const handleRemove = () => {
+    if (!selectedAttendee) return;
+    removeDelegateMutation.mutate(selectedAttendee.id, {
       onSuccess: () => {
         setShowRemoveDialog(false);
-        setSelectedDelegate(null);
+        setSelectedAttendee(null);
         refreshData();
       },
     });
-  };
-
-  const filteredMembers = availableMembers.filter(member =>
-    member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.phone?.includes(searchTerm)
-  );
-
-  const filteredDelegateMembers = delegateMembers.filter(member =>
-    member.name.toLowerCase().includes(delegatesSearchTerm.toLowerCase()) ||
-    member.number?.includes(delegatesSearchTerm)
-  );
-
-  const filteredDelegateOfficials = delegateOfficials.filter(official =>
-    official.name.toLowerCase().includes(delegatesSearchTerm.toLowerCase()) ||
-    official.phone?.includes(delegatesSearchTerm)
-  );
-
-  const getPaymentStatusBadge = (status: string) => {
-    switch (status?.toUpperCase()) {
-      case 'PAID':
-        return <Badge variant="success">Paid</Badge>;
-      case 'PARTIAL':
-        return <Badge variant="warning">Partial</Badge>;
-      case 'PENDING':
-      case 'PROOF_UPLOADED':
-        return <Badge variant="warning">Pending</Badge>;
-      case 'DECLINED':
-      case 'INVALID':
-        return <Badge variant="danger">Declined</Badge>;
-      default:
-        return <Badge variant="default">{status || 'Unknown'}</Badge>;
-    }
   };
 
   if (loading) {
@@ -189,289 +308,140 @@ export const ConferenceDelegates: React.FC = () => {
     );
   }
 
-  const totalDelegates = delegatesInfo?.delegates_count || (delegateMembers.length + delegateOfficials.length);
-  const canAddMore = conferenceInfo && conferenceInfo.rem_count > 0;
+  const paymentStatus = delegatesData?.payment_status;
+  const amount = delegatesData?.amount_to_pay || 0;
 
   return (
     <div className="space-y-4 sm:space-y-6 overflow-x-hidden">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Manage Delegates</h1>
           <p className="text-sm sm:text-base text-gray-500 mt-1">
-            {conferenceInfo?.district} District - Add delegates for the conference
+            {viewData?.district} District — add officials and delegates within the conference limits
           </p>
         </div>
-        {registrationOpen && canAddMore && (
-          <Button 
-            onClick={() => {
-              // Scroll to the available members section
-              const availableMembersSection = document.getElementById('available-members-section');
-              if (availableMembersSection) {
-                availableMembersSection.scrollIntoView({ behavior: 'smooth' });
-              }
-            }}
-            className="w-full sm:w-auto"
-          >
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button onClick={() => openAddDialog('official')} disabled={!canAddOfficial} className="w-full sm:w-auto">
+            <UserCog className="w-4 h-4 mr-2" />
+            Add Official
+          </Button>
+          <Button onClick={() => openAddDialog('delegate')} disabled={!canAddDelegate} className="w-full sm:w-auto">
             <UserPlus className="w-4 h-4 mr-2" />
             Add Delegate
           </Button>
-        )}
+        </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card className="p-3 sm:p-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
-              <Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-bold text-gray-800">{totalDelegates}</p>
-              <p className="text-xs sm:text-sm text-gray-500 truncate">Registered</p>
+            <div className="p-2 bg-blue-100 rounded-lg"><UserCog className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" /></div>
+            <div>
+              <p className="text-xl sm:text-2xl font-bold text-gray-800">{officialCount}/{officialLimit}</p>
+              <p className="text-xs sm:text-sm text-gray-500">Officials</p>
             </div>
           </div>
         </Card>
         <Card className="p-3 sm:p-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
-              <Target className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-bold text-gray-800">{delegatesInfo?.max_count || conferenceInfo?.max_count || 0}</p>
-              <p className="text-xs sm:text-sm text-gray-500 truncate">Max Allowed</p>
+            <div className="p-2 bg-green-100 rounded-lg"><Target className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" /></div>
+            <div>
+              <p className="text-xl sm:text-2xl font-bold text-gray-800">{delegateCount}/{memberLimit}</p>
+              <p className="text-xs sm:text-sm text-gray-500">Delegates</p>
             </div>
           </div>
         </Card>
         <Card className="p-3 sm:p-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="p-2 bg-orange-100 rounded-lg flex-shrink-0">
-              <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-bold text-gray-800">₹{delegatesInfo?.amount_to_pay || 0}</p>
-              <p className="text-xs sm:text-sm text-gray-500 truncate">Amount</p>
+            <div className="p-2 bg-orange-100 rounded-lg"><CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" /></div>
+            <div>
+              <p className="text-xl sm:text-2xl font-bold text-gray-800">₹{amount}</p>
+              <p className="text-xs sm:text-sm text-gray-500">Amount</p>
             </div>
           </div>
         </Card>
         <Card className="p-3 sm:p-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="p-2 bg-purple-100 rounded-lg flex-shrink-0">
-              <Utensils className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
-            </div>
-            <div className="min-w-0">
+            <div className="p-2 bg-purple-100 rounded-lg"><Utensils className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" /></div>
+            <div>
               <p className="text-base sm:text-lg font-bold text-gray-800">
-                <span className="text-green-600">{delegatesInfo?.food_preference?.veg_count || 0}</span>
-                {'/'}
-                <span className="text-red-600">{delegatesInfo?.food_preference?.non_veg_count || 0}</span>
+                <span className="text-green-600">{delegatesData?.food_preference?.veg_count || 0}</span>
+                {' / '}
+                <span className="text-red-600">{delegatesData?.food_preference?.non_veg_count || 0}</span>
               </p>
-              <p className="text-xs sm:text-sm text-gray-500 truncate">Veg/Non-Veg</p>
+              <p className="text-xs sm:text-sm text-gray-500">Veg / Non-Veg</p>
             </div>
           </div>
         </Card>
       </div>
 
-      {/* Payment Status Banner */}
-      {delegatesInfo && (
-        <Card className={`p-3 sm:p-4 ${delegatesInfo.payment_status === 'PAID' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <CreditCard className={`w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 ${delegatesInfo.payment_status === 'PAID' ? 'text-green-600' : 'text-yellow-600'}`} />
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium text-gray-800 text-sm sm:text-base">Payment: </span>
-                {getPaymentStatusBadge(delegatesInfo.payment_status)}
-              </div>
+      {delegatesData && (
+        <Card className={`p-3 sm:p-4 ${paymentStatus === 'PAID' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-yellow-600" />
+              <span className="font-medium text-gray-800 text-sm">Payment:</span>
+              <Badge variant={paymentStatus === 'PAID' ? 'success' : paymentStatus === 'DECLINED' ? 'danger' : 'warning'}>
+                {paymentStatus || 'Pending'}
+              </Badge>
             </div>
-            <div className="text-left sm:text-right">
-              <p className="text-xs sm:text-sm text-gray-500">Total Amount</p>
-              <p className="text-base sm:text-lg font-bold text-gray-800">₹{delegatesInfo.amount_to_pay}</p>
-            </div>
+            <p className="text-base font-bold text-gray-800">₹{amount}</p>
           </div>
         </Card>
       )}
 
-      {/* Registration Closed Alert */}
-      {!registrationOpen && (
+      {!conferenceActive && (
         <Card className="p-4 bg-yellow-50 border-yellow-200">
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
             <div>
               <h4 className="font-medium text-yellow-800">Registration Closed</h4>
-              <p className="text-sm text-yellow-700 mt-1">
-                You cannot add or remove delegates as the registration period has ended or slots are full.
-              </p>
+              <p className="text-sm text-yellow-700 mt-1">This conference is not open for changes.</p>
             </div>
           </div>
         </Card>
       )}
 
-      {/* Registered Delegates Section */}
-      {(delegateMembers.length > 0 || delegateOfficials.length > 0) && (
-        <Card>
-          <div className="p-3 sm:p-4 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
-              <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
-              Registered Delegates ({totalDelegates})
-            </h3>
-            <p className="text-xs sm:text-sm text-gray-500 mt-1">
-              Members and officials registered for the conference
-            </p>
-          </div>
+      <AttendeeTable
+        title={`Officials (${officialCount}/${officialLimit})`}
+        hint="Includes the district official added by conference admin. Preferences stay blank until someone from this district sets them."
+        icon={<UserCog className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />}
+        rows={filteredOfficials}
+        empty={officials.length === 0 ? 'No officials yet' : 'No officials match these filters'}
+        query={officialQuery}
+        gender={officialGender}
+        food={officialFood}
+        onQuery={setOfficialQuery}
+        onGender={setOfficialGender}
+        onFood={setOfficialFood}
+        canEdit={!!conferenceActive}
+        onEdit={openEditDialog}
+        onRemove={(row) => {
+          setSelectedAttendee(row);
+          setShowRemoveDialog(true);
+        }}
+      />
 
-          {/* Search */}
-          <div className="p-3 sm:p-4 border-b border-gray-100">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search delegates..."
-                value={delegatesSearchTerm}
-                onChange={(e) => setDelegatesSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              />
-            </div>
-          </div>
+      <AttendeeTable
+        title={`Delegates (${delegateCount}/${memberLimit})`}
+        hint="Unit members registered as conference delegates."
+        icon={<Users className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />}
+        rows={filteredDelegates}
+        empty={delegates.length === 0 ? 'No delegates yet' : 'No delegates match these filters'}
+        query={delegateQuery}
+        gender={delegateGender}
+        food={delegateFood}
+        onQuery={setDelegateQuery}
+        onGender={setDelegateGender}
+        onFood={setDelegateFood}
+        canEdit={!!conferenceActive}
+        onEdit={openEditDialog}
+        onRemove={(row) => {
+          setSelectedAttendee(row);
+          setShowRemoveDialog(true);
+        }}
+      />
 
-          {/* Delegate Officials */}
-          {filteredDelegateOfficials.length > 0 && (
-            <div className="p-3 sm:p-4 border-b border-gray-100">
-              <h4 className="text-xs sm:text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                <UserCog className="w-4 h-4" />
-                Officials ({filteredDelegateOfficials.length})
-              </h4>
-              <div className="space-y-2">
-                {filteredDelegateOfficials.map((official) => (
-                  <div key={`official-${official.id}`} className="flex items-center justify-between p-2 sm:p-3 bg-blue-50 rounded-lg">
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs sm:text-sm font-medium text-blue-600">
-                          {official.name?.charAt(0) || '?'}
-                        </span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-gray-800 text-sm truncate">{official.name}</p>
-                        <p className="text-xs text-gray-500">{official.phone || '-'}</p>
-                      </div>
-                    </div>
-                    <Badge variant="info" className="flex-shrink-0 text-xs">Official</Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Delegate Members */}
-          {filteredDelegateMembers.length > 0 && (
-            <>
-              <div className="p-3 sm:p-4 border-b border-gray-100">
-                <h4 className="text-xs sm:text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  Members ({filteredDelegateMembers.length})
-                </h4>
-              </div>
-              
-              {/* Mobile Card View */}
-              <div className="block sm:hidden divide-y divide-gray-100">
-                {filteredDelegateMembers.map((member) => (
-                  <div key={`member-${member.id}`} className="p-3 hover:bg-gray-50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-sm font-medium text-green-600">
-                            {member.name?.charAt(0) || '?'}
-                          </span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-gray-800 text-sm truncate">{member.name}</p>
-                          <p className="text-xs text-gray-500">{member.number || '-'}</p>
-                          <Badge variant={member.gender === 'M' ? 'info' : 'default'} className="mt-1 text-xs">
-                            {member.gender === 'M' ? 'Male' : member.gender === 'F' ? 'Female' : member.gender}
-                          </Badge>
-                        </div>
-                      </div>
-                      {registrationOpen && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedDelegate(member);
-                            setShowRemoveDialog(true);
-                          }}
-                          className="text-red-600 hover:bg-red-50 hover:border-red-300 flex-shrink-0 ml-2"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Desktop Table View */}
-              <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
-                      {registrationOpen && (
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredDelegateMembers.map((member) => (
-                      <tr key={`member-${member.id}`} className="hover:bg-gray-50">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                              <span className="text-sm font-medium text-green-600">
-                                {member.name?.charAt(0) || '?'}
-                              </span>
-                            </div>
-                            <span className="font-medium text-gray-800">{member.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-gray-600">{member.number || '-'}</td>
-                        <td className="px-4 py-3">
-                          <Badge variant={member.gender === 'M' ? 'info' : 'default'}>
-                            {member.gender === 'M' ? 'Male' : member.gender === 'F' ? 'Female' : member.gender}
-                          </Badge>
-                        </td>
-                        {registrationOpen && (
-                          <td className="px-4 py-3 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedDelegate(member);
-                                setShowRemoveDialog(true);
-                              }}
-                              className="text-red-600 hover:bg-red-50 hover:border-red-300"
-                            >
-                              <Trash2 className="w-4 h-4 mr-1" />
-                              Remove
-                            </Button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-
-          {filteredDelegateMembers.length === 0 && filteredDelegateOfficials.length === 0 && delegatesSearchTerm && (
-            <div className="p-6 sm:p-8 text-center text-gray-500 text-sm">
-              No delegates found matching your search
-            </div>
-          )}
-        </Card>
-      )}
-
-      {/* Available Members List */}
       <Card id="available-members-section">
         <div className="p-3 sm:p-4 border-b border-gray-100">
           <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
@@ -479,120 +449,57 @@ export const ConferenceDelegates: React.FC = () => {
             Available Members ({availableMembers.length})
           </h3>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Members from your district who can be added as delegates
+            District members who are not already an official or delegate
           </p>
         </div>
-        
-        {/* Search */}
         <div className="p-3 sm:p-4 border-b border-gray-100">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by name or phone..."
+              placeholder="Search by name, phone, or unit..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
             />
           </div>
         </div>
-
-        {/* Mobile Card View */}
-        <div className="block sm:hidden">
-          {filteredMembers.length === 0 ? (
-            <div className="p-4 text-center text-gray-500 text-sm">
-              {searchTerm ? 'No members found matching your search' : 'No available members'}
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {filteredMembers.slice(0, 50).map((member) => (
-                <div key={member.id} className="p-3 hover:bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-sm font-medium text-orange-600">
-                          {member.name?.charAt(0) || '?'}
-                        </span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-gray-800 text-sm truncate">{member.name}</p>
-                        <p className="text-xs text-gray-500">{member.phone || '-'}</p>
-                        <Badge variant={member.gender === 'M' ? 'info' : 'default'} className="mt-1 text-xs">
-                          {member.gender === 'M' ? 'Male' : member.gender === 'F' ? 'Female' : member.gender}
-                        </Badge>
-                      </div>
-                    </div>
-                    {registrationOpen && canAddMore && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedMember(member);
-                          setShowAddDialog(true);
-                        }}
-                        className="flex-shrink-0 ml-2"
-                      >
-                        <UserPlus className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Desktop Table View */}
-        <div className="hidden sm:block overflow-x-auto">
+        <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
-                {registrationOpen && canAddMore && (
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gender</th>
+                {conferenceActive && (canAddOfficial || canAddDelegate) && (
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
                 )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
                     {searchTerm ? 'No members found matching your search' : 'No available members'}
                   </td>
                 </tr>
               ) : (
                 filteredMembers.slice(0, 50).map((member) => (
                   <tr key={member.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                          <span className="text-sm font-medium text-orange-600">
-                            {member.name?.charAt(0) || '?'}
-                          </span>
-                        </div>
-                        <span className="font-medium text-gray-800">{member.name}</span>
-                      </div>
-                    </td>
+                    <td className="px-4 py-3 font-medium text-gray-800">{member.name}</td>
                     <td className="px-4 py-3 text-gray-600">{member.phone || '-'}</td>
+                    <td className="px-4 py-3 text-gray-600">{member.unitName || '-'}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={member.gender === 'M' ? 'info' : 'default'}>
-                        {member.gender === 'M' ? 'Male' : member.gender === 'F' ? 'Female' : member.gender}
-                      </Badge>
+                      <Badge variant={genderCode(member.gender) === 'M' ? 'info' : 'default'}>{genderLabel(member.gender)}</Badge>
                     </td>
-                    {registrationOpen && canAddMore && (
-                      <td className="px-4 py-3 text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedMember(member);
-                            setShowAddDialog(true);
-                          }}
-                        >
-                          <UserPlus className="w-4 h-4 mr-1" />
-                          Add
+                    {conferenceActive && (canAddOfficial || canAddDelegate) && (
+                      <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                        <Button variant="outline" size="sm" disabled={!canAddOfficial} onClick={() => openAddDialog('official', member)}>
+                          Official
+                        </Button>
+                        <Button variant="outline" size="sm" disabled={!canAddDelegate} onClick={() => openAddDialog('delegate', member)}>
+                          Delegate
                         </Button>
                       </td>
                     )}
@@ -603,140 +510,122 @@ export const ConferenceDelegates: React.FC = () => {
           </table>
         </div>
         {filteredMembers.length > 50 && (
-          <div className="p-3 sm:p-4 text-center text-xs sm:text-sm text-gray-500 border-t border-gray-100">
-            Showing 50 of {filteredMembers.length} members. Use search to find specific members.
+          <div className="p-3 text-center text-xs text-gray-500 border-t">
+            Showing 50 of {filteredMembers.length} members. Use search to find others.
           </div>
         )}
       </Card>
 
-      {/* Add Delegate Dialog */}
-      {showAddDialog && selectedMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="p-4 border-b border-gray-100">
-              <h3 className="text-lg font-semibold text-gray-800">Add Delegate</h3>
-            </div>
-            
-            <div className="p-4 sm:p-6 space-y-4">
-              {/* Member Info */}
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-base sm:text-lg font-medium text-orange-600">
-                    {selectedMember.name?.charAt(0) || '?'}
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-gray-800 text-sm sm:text-base truncate">{selectedMember.name}</p>
-                  <p className="text-xs sm:text-sm text-gray-500">{selectedMember.phone || '-'}</p>
-                </div>
+      {showAddDialog && (
+        <Portal>
+          <div className="fixed inset-0 z-[100] bg-black/50" onClick={closeAddDialog} />
+          <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+            <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto pointer-events-auto">
+              <div className="p-4 border-b flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {selectedMember ? `Confirm ${addRole === 'official' ? 'Official' : 'Delegate'}` : `Add ${addRole === 'official' ? 'Official' : 'Delegate'}`}
+                </h3>
+                {selectedMember && (
+                  <Button variant="outline" size="sm" onClick={() => setSelectedMember(null)}>Change member</Button>
+                )}
               </div>
-              
-              {/* Food Preference */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Utensils className="w-4 h-4 inline mr-2" />
-                  Food Preference
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFoodPreference('veg')}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                      foodPreference === 'veg' 
-                        ? 'border-green-500 bg-green-50 text-green-700' 
-                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                    }`}
-                  >
-                    <Leaf className="w-5 h-5" />
-                    <span className="font-medium text-sm">Veg</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFoodPreference('non-veg')}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                      foodPreference === 'non-veg' 
-                        ? 'border-red-500 bg-red-50 text-red-700' 
-                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                    }`}
-                  >
-                    <Drumstick className="w-5 h-5" />
-                    <span className="font-medium text-sm">Non-Veg</span>
-                  </button>
+              {!selectedMember ? (
+                <div className="p-4 space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="Search by name, phone, or unit..."
+                      value={pickerSearchTerm}
+                      onChange={(e) => setPickerSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <div className="max-h-64 overflow-y-auto border border-gray-100 rounded-lg divide-y">
+                    {pickerMembers.length === 0 ? (
+                      <p className="p-4 text-sm text-gray-500 text-center">No members match your search</p>
+                    ) : (
+                      pickerMembers.slice(0, 30).map((member) => (
+                        <button
+                          key={member.id}
+                          type="button"
+                          onClick={() => setSelectedMember(member)}
+                          className="w-full px-3 py-2.5 text-left hover:bg-orange-50"
+                        >
+                          <p className="font-medium text-gray-800 text-sm">{member.name}</p>
+                          <p className="text-xs text-gray-500">{member.phone || '-'}{member.unitName ? ` · ${member.unitName}` : ''}</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-
-              {/* Accommodation */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Home className="w-4 h-4 inline mr-2" />
-                  Accommodation Required?
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAccommodationRequired(true)}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                      accommodationRequired 
-                        ? 'border-blue-500 bg-blue-50 text-blue-700' 
-                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                    }`}
-                  >
-                    <CheckCircle className="w-5 h-5" />
-                    <span className="font-medium text-sm">Yes</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAccommodationRequired(false)}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                      !accommodationRequired 
-                        ? 'border-gray-500 bg-gray-50 text-gray-700' 
-                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                    }`}
-                  >
-                    <AlertCircle className="w-5 h-5" />
-                    <span className="font-medium text-sm">No</span>
-                  </button>
+              ) : (
+                <div className="p-4 space-y-4">
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="font-semibold text-gray-800">{selectedMember.name}</p>
+                    <p className="text-sm text-gray-500">{selectedMember.phone || '-'}</p>
+                    <p className="text-sm text-gray-500">{selectedMember.unitName || '-'}</p>
+                  </div>
+                  <PreferenceFields
+                    food={foodPreference}
+                    stay={accommodationRequired}
+                    onFood={setFoodPreference}
+                    onStay={setAccommodationRequired}
+                  />
                 </div>
+              )}
+              <div className="p-4 border-t flex justify-end gap-2">
+                <Button variant="outline" onClick={closeAddDialog}>Cancel</Button>
+                {selectedMember && (
+                  <Button onClick={handleAdd} disabled={addDelegateMutation.isPending} isLoading={addDelegateMutation.isPending}>
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Add {addRole === 'official' ? 'Official' : 'Delegate'}
+                  </Button>
+                )}
               </div>
-            </div>
-
-            <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setShowAddDialog(false);
-                  setSelectedMember(null);
-                  setFoodPreference('veg');
-                  setAccommodationRequired(false);
-                }}
-                className="w-full sm:w-auto"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleAddDelegate} 
-                disabled={addDelegateMutation.isPending}
-                isLoading={addDelegateMutation.isPending}
-                className="w-full sm:w-auto"
-              >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Add Delegate
-              </Button>
-            </div>
-          </Card>
-        </div>
+            </Card>
+          </div>
+        </Portal>
       )}
 
-      {/* Remove Delegate Confirmation */}
+      {showEditDialog && selectedAttendee && (
+        <Portal>
+          <div className="fixed inset-0 z-[100] bg-black/50" onClick={() => setShowEditDialog(false)} />
+          <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+            <Card className="w-full max-w-md pointer-events-auto">
+              <div className="p-4 border-b">
+                <h3 className="text-lg font-semibold text-gray-800">Edit Preferences</h3>
+                <p className="text-sm text-gray-500 mt-1">{selectedAttendee.name}</p>
+              </div>
+              <div className="p-4 space-y-4">
+                <PreferenceFields
+                  food={foodPreference}
+                  stay={accommodationRequired}
+                  onFood={setFoodPreference}
+                  onStay={setAccommodationRequired}
+                />
+              </div>
+              <div className="p-4 border-t flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+                <Button onClick={handleSavePreferences} disabled={updatePreferencesMutation.isPending} isLoading={updatePreferencesMutation.isPending}>
+                  Save
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </Portal>
+      )}
+
       <ConfirmDialog
         isOpen={showRemoveDialog}
         onClose={() => {
           setShowRemoveDialog(false);
-          setSelectedDelegate(null);
+          setSelectedAttendee(null);
         }}
-        onConfirm={handleRemoveDelegate}
-        title="Remove Delegate"
-        message={`Are you sure you want to remove ${selectedDelegate?.name} from the delegates list?`}
+        onConfirm={handleRemove}
+        title="Remove from conference"
+        message={`Remove ${selectedAttendee?.name || 'this person'} from the conference list?`}
         confirmText="Remove"
         confirmVariant="danger"
         isLoading={removeDelegateMutation.isPending}
@@ -744,3 +633,98 @@ export const ConferenceDelegates: React.FC = () => {
     </div>
   );
 };
+
+const AttendeeTable: React.FC<{
+  title: string;
+  hint: string;
+  icon: React.ReactNode;
+  rows: Attendee[];
+  empty: string;
+  query: string;
+  gender: string;
+  food: string;
+  onQuery: (value: string) => void;
+  onGender: (value: string) => void;
+  onFood: (value: string) => void;
+  canEdit: boolean;
+  onEdit: (row: Attendee) => void;
+  onRemove: (row: Attendee) => void;
+}> = ({ title, hint, icon, rows, empty, query, gender, food, onQuery, onGender, onFood, canEdit, onEdit, onRemove }) => (
+  <Card>
+    <div className="p-3 sm:p-4 border-b border-gray-100">
+      <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
+        {icon}
+        {title}
+      </h3>
+      <p className="text-xs sm:text-sm text-gray-500 mt-1">{hint}</p>
+    </div>
+    <div className="p-3 sm:p-4 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className="relative sm:col-span-1">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Name, phone, or unit"
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          className="w-full pl-10 pr-3 py-2 text-sm border border-gray-200 rounded-lg"
+        />
+      </div>
+      <select value={gender} onChange={(e) => onGender(e.target.value)} className="px-3 py-2 text-sm border border-gray-200 rounded-lg">
+        <option value="all">All genders</option>
+        <option value="M">Male</option>
+        <option value="F">Female</option>
+      </select>
+      <select value={food} onChange={(e) => onFood(e.target.value)} className="px-3 py-2 text-sm border border-gray-200 rounded-lg">
+        <option value="all">All food preferences</option>
+        <option value="veg">Veg</option>
+        <option value="non-veg">Non-Veg</option>
+        <option value="unset">Not set</option>
+      </select>
+    </div>
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead className="bg-gray-50">
+          <tr>
+            {['Name', 'Unit Name', 'Phone', 'Gender', 'Food', 'Stay', 'Action'].map((heading) => (
+              <th key={heading} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{heading}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={7} className="px-4 py-8 text-center text-gray-500">{empty}</td>
+            </tr>
+          ) : (
+            rows.map((row) => (
+              <tr key={row.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 font-medium text-gray-800">{row.name}</td>
+                <td className="px-4 py-3 text-gray-600">{row.unit_name || '-'}</td>
+                <td className="px-4 py-3 text-gray-600">{row.phone || row.number || '-'}</td>
+                <td className="px-4 py-3">
+                  <Badge variant={genderCode(row.gender) === 'M' ? 'info' : 'default'}>{genderLabel(row.gender)}</Badge>
+                </td>
+                <td className="px-4 py-3 text-gray-700">{foodLabel(row.food_preference)}</td>
+                <td className="px-4 py-3 text-gray-700">{stayLabel(row.accommodation_required)}</td>
+                <td className="px-4 py-3 text-right whitespace-nowrap space-x-2">
+                  {canEdit && (
+                    <Button variant="outline" size="sm" onClick={() => onEdit(row)}>
+                      <Pencil className="w-4 h-4 mr-1" />
+                      Edit
+                    </Button>
+                  )}
+                  {canEdit && row.removable && (
+                    <Button variant="outline" size="sm" className="text-red-600" onClick={() => onRemove(row)}>
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Remove
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  </Card>
+);

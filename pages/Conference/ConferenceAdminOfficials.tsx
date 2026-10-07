@@ -13,6 +13,7 @@ import {
   useUpdateConferenceOfficial, 
   useDeleteConferenceOfficial 
 } from '../../hooks/queries';
+import { ClergyDistrict } from '../../types';
 
 interface DistrictOfficial {
   id: number;
@@ -73,10 +74,14 @@ export const ConferenceAdminOfficials: React.FC = () => {
     conference_member_count: 10,
   });
 
-  // Member search for adding new official
+  // Member search for adding new official (scoped to selected district)
+  const [districts, setDistricts] = useState<ClergyDistrict[]>([]);
+  const [districtsLoading, setDistrictsLoading] = useState(false);
+  const [selectedDistrictId, setSelectedDistrictId] = useState(0);
+  const [districtMembersCache, setDistrictMembersCache] = useState<UnitMember[]>([]);
+  const [districtMembersLoading, setDistrictMembersLoading] = useState(false);
   const [memberSearchTerm, setMemberSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<UnitMember[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
   const [selectedMember, setSelectedMember] = useState<UnitMember | null>(null);
 
   // Lock body scroll when modal is open
@@ -91,26 +96,86 @@ export const ConferenceAdminOfficials: React.FC = () => {
     };
   }, [showModal, showDeleteConfirm]);
 
-  const searchMembers = async (term: string) => {
-    if (term.length < 2) {
+  useEffect(() => {
+    if (!showModal || modalType !== 'add') return;
+    setDistrictsLoading(true);
+    api.getDistricts()
+      .then((data) => setDistricts(data || []))
+      .catch(() => addToast('Failed to load districts', 'error'))
+      .finally(() => setDistrictsLoading(false));
+  }, [showModal, modalType, addToast]);
+
+  useEffect(() => {
+    if (modalType !== 'add' || !formData.conference_id || !selectedDistrictId) {
+      setDistrictMembersCache([]);
+      return;
+    }
+
+    let cancelled = false;
+    const districtName = districts.find((d) => d.id === selectedDistrictId)?.name;
+
+    (async () => {
+      try {
+        setDistrictMembersLoading(true);
+        const members = await api.getConferenceDistrictMembersAdmin(
+          formData.conference_id,
+          selectedDistrictId,
+        );
+        if (cancelled) return;
+        setDistrictMembersCache(
+          members.map((m) => ({
+            id: m.id,
+            name: m.name,
+            number: m.number,
+            gender: m.gender,
+            dob: m.dob,
+            unitName: m.unit_name ?? undefined,
+            districtName,
+          })),
+        );
+      } catch {
+        if (!cancelled) {
+          addToast('Failed to load members for this district', 'error');
+          setDistrictMembersCache([]);
+        }
+      } finally {
+        if (!cancelled) setDistrictMembersLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [modalType, formData.conference_id, selectedDistrictId, districts, addToast]);
+
+  const searchMembers = (term: string) => {
+    if (!selectedDistrictId || term.length < 2) {
       setSearchResults([]);
       return;
     }
-    
-    try {
-      setSearchLoading(true);
-      // Use the units members API to search
-      const response = await api.getUnitMembers();
-      const members = response.data.filter((m: any) => 
-        m.name?.toLowerCase().includes(term.toLowerCase()) ||
-        m.number?.includes(term)
-      ).slice(0, 10);
-      setSearchResults(members);
-    } catch (err) {
-      addToast("Failed to search members", "error");
-    } finally {
-      setSearchLoading(false);
-    }
+    const lower = term.toLowerCase();
+    const members = districtMembersCache
+      .filter(
+        (m) =>
+          m.name?.toLowerCase().includes(lower) ||
+          m.number?.includes(term),
+      )
+      .slice(0, 10);
+    setSearchResults(members);
+  };
+
+  const handleDistrictChange = (districtId: number) => {
+    setSelectedDistrictId(districtId);
+    setSelectedMember(null);
+    setMemberSearchTerm('');
+    setSearchResults([]);
+  };
+
+  const handleConferenceChange = (conferenceId: number) => {
+    setFormData({ ...formData, conference_id: conferenceId });
+    setSelectedMember(null);
+    setMemberSearchTerm('');
+    setSearchResults([]);
   };
 
   const openModal = (type: 'add' | 'edit', official?: DistrictOfficial) => {
@@ -119,6 +184,8 @@ export const ConferenceAdminOfficials: React.FC = () => {
     setSelectedMember(null);
     setMemberSearchTerm('');
     setSearchResults([]);
+    setSelectedDistrictId(0);
+    setDistrictMembersCache([]);
     
     if (type === 'edit' && official) {
       setFormData({
@@ -150,6 +217,10 @@ export const ConferenceAdminOfficials: React.FC = () => {
     e.preventDefault();
     
     if (modalType === 'add') {
+      if (!selectedDistrictId) {
+        addToast('Please select a district', 'error');
+        return;
+      }
       if (!selectedMember) {
         addToast("Please select a member", "error");
         return;
@@ -409,7 +480,7 @@ export const ConferenceAdminOfficials: React.FC = () => {
                       </label>
                       <select
                         value={formData.conference_id}
-                        onChange={(e) => setFormData({ ...formData, conference_id: parseInt(e.target.value) })}
+                        onChange={(e) => handleConferenceChange(parseInt(e.target.value))}
                         className="w-full px-3 py-2 bg-white text-textDark border border-borderColor rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm"
                         required
                       >
@@ -418,6 +489,29 @@ export const ConferenceAdminOfficials: React.FC = () => {
                           <option key={c.id} value={c.id}>{c.title}</option>
                         ))}
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-textDark mb-1.5">
+                        District <span className="text-danger">*</span>
+                      </label>
+                      <select
+                        value={selectedDistrictId}
+                        onChange={(e) => handleDistrictChange(parseInt(e.target.value))}
+                        disabled={districtsLoading || !formData.conference_id}
+                        className="w-full px-3 py-2 bg-white text-textDark border border-borderColor rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm disabled:opacity-60"
+                        required
+                      >
+                        <option value={0}>
+                          {districtsLoading ? 'Loading districts…' : 'Select District'}
+                        </option>
+                        {districts.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
+                      {!formData.conference_id && (
+                        <p className="text-xs text-textMuted mt-1">Select a conference first</p>
+                      )}
                     </div>
 
                     <div>
@@ -433,13 +527,18 @@ export const ConferenceAdminOfficials: React.FC = () => {
                             setMemberSearchTerm(e.target.value);
                             searchMembers(e.target.value);
                           }}
-                          placeholder="Search by name or phone..."
-                          className="w-full pl-10 pr-4 py-2 bg-white text-textDark border border-borderColor rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-textMuted text-sm"
+                          disabled={!selectedDistrictId || districtMembersLoading}
+                          placeholder={
+                            !selectedDistrictId
+                              ? 'Select a district first…'
+                              : 'Search by name or phone…'
+                          }
+                          className="w-full pl-10 pr-4 py-2 bg-white text-textDark border border-borderColor rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-textMuted text-sm disabled:opacity-60"
                         />
                       </div>
                       
-                      {searchLoading && (
-                        <p className="text-sm text-textMuted mt-2">Searching...</p>
+                      {districtMembersLoading && (
+                        <p className="text-sm text-textMuted mt-2">Loading district members…</p>
                       )}
                       
                       {searchResults.length > 0 && !selectedMember && (
