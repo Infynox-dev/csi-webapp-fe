@@ -297,6 +297,7 @@ export interface ConferenceOfficialView {
     gender: string;
     phone?: string;
     unitName?: string;
+    registeredAs?: 'official' | 'delegate' | null;
   }>;
   // Additional fields from actual API
   rem_count: number;

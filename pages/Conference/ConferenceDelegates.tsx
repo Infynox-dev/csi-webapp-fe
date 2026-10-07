@@ -40,6 +40,7 @@ interface AvailableMember {
   gender: string;
   phone?: string;
   unitName?: string;
+  registeredAs?: 'official' | 'delegate' | null;
 }
 
 type FoodPref = 'veg' | 'non-veg' | null;
@@ -225,11 +226,14 @@ export const ConferenceDelegates: React.FC = () => {
     (memberPageSafe - 1) * memberPageSize,
     memberPageSafe * memberPageSize,
   );
-  const pickerMembers = filterMembersByQuery(availableMembers, pickerSearchTerm);
+  const pickerMembers = filterMembersByQuery(availableMembers, pickerSearchTerm).filter(
+    (member) => member.registeredAs !== 'official' && member.registeredAs !== 'delegate',
+  );
   const filteredOfficials = officials.filter((row) => matchesAttendee(row, officialQuery, officialGender, officialFood));
   const filteredDelegates = delegates.filter((row) => matchesAttendee(row, delegateQuery, delegateGender, delegateFood));
 
   const openAddDialog = (role: AttendeeRole, member?: AvailableMember) => {
+    if (member?.registeredAs === 'official' || member?.registeredAs === 'delegate') return;
     setAddRole(role);
     setSelectedMember(member ?? null);
     setPickerSearchTerm('');
@@ -416,9 +420,6 @@ export const ConferenceDelegates: React.FC = () => {
           setSelectedAttendee(row);
           setShowRemoveDialog(true);
         }}
-        addLabel="Add Official"
-        addDisabled={!canAddOfficial}
-        onAdd={() => openAddDialog('official')}
       />
 
       <AttendeeTable
@@ -448,7 +449,7 @@ export const ConferenceDelegates: React.FC = () => {
             Available Members ({availableMembers.length})
           </h3>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            District members who are not already an official or delegate
+            Add a district member as an official or a delegate. People already registered are disabled.
           </p>
         </div>
         <div className="p-3 sm:p-4 border-b border-gray-100">
@@ -474,9 +475,7 @@ export const ConferenceDelegates: React.FC = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Name</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gender</th>
-                {conferenceActive && (canAddOfficial || canAddDelegate) && (
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
-                )}
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -487,26 +486,46 @@ export const ConferenceDelegates: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                pagedMembers.map((member) => (
-                  <tr key={member.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-800">{member.name}</td>
+                pagedMembers.map((member) => {
+                  const added = member.registeredAs === 'official' || member.registeredAs === 'delegate';
+                  return (
+                  <tr key={member.id} className={added ? 'bg-gray-50 text-gray-400' : 'hover:bg-gray-50'}>
+                    <td className={`px-4 py-3 font-medium ${added ? 'text-gray-400' : 'text-gray-800'}`}>{member.name}</td>
                     <td className="px-4 py-3 text-gray-600">{member.phone || '-'}</td>
                     <td className="px-4 py-3 text-gray-600">{member.unitName || '-'}</td>
                     <td className="px-4 py-3">
                       <Badge variant={genderCode(member.gender) === 'M' ? 'info' : 'default'}>{genderLabel(member.gender)}</Badge>
                     </td>
-                    {conferenceActive && (canAddOfficial || canAddDelegate) && (
-                      <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
-                        <Button variant="outline" size="sm" disabled={!canAddOfficial} onClick={() => openAddDialog('official', member)}>
-                          Official
-                        </Button>
-                        <Button variant="outline" size="sm" disabled={!canAddDelegate} onClick={() => openAddDialog('delegate', member)}>
-                          Delegate
-                        </Button>
-                      </td>
-                    )}
+                    <td className="px-4 py-3 text-right">
+                      {added ? (
+                        <Badge variant="default">
+                          {member.registeredAs === 'official' ? 'Added as official' : 'Added as delegate'}
+                        </Badge>
+                      ) : (
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Button
+                            size="sm"
+                            disabled={!conferenceActive || !canAddOfficial}
+                            onClick={() => openAddDialog('official', member)}
+                          >
+                            <UserCog className="w-4 h-4 mr-1" />
+                            Add Official
+                          </Button>
+                          <Button
+                            variant="success"
+                            size="sm"
+                            disabled={!conferenceActive || !canAddDelegate}
+                            onClick={() => openAddDialog('delegate', member)}
+                          >
+                            <UserPlus className="w-4 h-4 mr-1" />
+                            Add Delegate
+                          </Button>
+                        </div>
+                      )}
+                    </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -674,25 +693,14 @@ const AttendeeTable: React.FC<{
   canEdit: boolean;
   onEdit: (row: Attendee) => void;
   onRemove: (row: Attendee) => void;
-  addLabel?: string;
-  addDisabled?: boolean;
-  onAdd?: () => void;
-}> = ({ title, hint, icon, rows, empty, query, gender, food, onQuery, onGender, onFood, canEdit, onEdit, onRemove, addLabel, addDisabled, onAdd }) => (
+}> = ({ title, hint, icon, rows, empty, query, gender, food, onQuery, onGender, onFood, canEdit, onEdit, onRemove }) => (
   <Card>
-    <div className="p-3 sm:p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-      <div>
-        <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
-          {icon}
-          {title}
-        </h3>
-        <p className="text-xs sm:text-sm text-gray-500 mt-1">{hint}</p>
-      </div>
-      {onAdd && addLabel && (
-        <Button onClick={onAdd} disabled={addDisabled} className="w-full sm:w-auto flex-shrink-0">
-          <UserPlus className="w-4 h-4 mr-2" />
-          {addLabel}
-        </Button>
-      )}
+    <div className="p-3 sm:p-4 border-b border-gray-100">
+      <h3 className="font-semibold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
+        {icon}
+        {title}
+      </h3>
+      <p className="text-xs sm:text-sm text-gray-500 mt-1">{hint}</p>
     </div>
     <div className="p-3 sm:p-4 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-2">
       <div className="relative sm:col-span-1">

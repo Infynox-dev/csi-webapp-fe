@@ -348,6 +348,7 @@ class ApiService {
         gender: m.gender,
         phone: m.number,
         unitName: m.unit_name ?? '',
+        registeredAs: m.registered_as === 'official' || m.registered_as === 'delegate' ? m.registered_as : null,
       })),
       rem_count: rawData.rem_count || 0,
       max_count: rawData.max_count || 0,

@@ -101,7 +101,7 @@ export const Badge: React.FC<BadgeProps> = memo(({ children, variant = 'secondar
 
 // --- Button ---
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost' | 'success';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
 }
@@ -115,6 +115,7 @@ export const Button: React.FC<ButtonProps> = memo(({ children, variant = 'primar
     danger: "bg-danger text-white hover:bg-red-700 focus:ring-danger shadow-sm",
     outline: "border border-borderColor text-textDark bg-white hover:bg-bgLight focus:ring-primary",
     ghost: "text-textMuted hover:bg-bgLight hover:text-textDark",
+    success: "bg-success text-white hover:bg-green-600 focus:ring-success shadow-sm",
   };
 
   const sizes = {
