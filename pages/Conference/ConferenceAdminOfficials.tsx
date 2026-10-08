@@ -6,6 +6,7 @@ import { api } from '../../services/api';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DataTable, ColumnDef } from '../../components/DataTable';
 import { Portal } from '../../components/Portal';
+import { SearchableSelect } from '../../components/SearchableSelect';
 import { 
   useConferencesAdmin, 
   useConferenceOfficialsAdmin, 
@@ -99,8 +100,14 @@ export const ConferenceAdminOfficials: React.FC = () => {
   useEffect(() => {
     if (!showModal || modalType !== 'add') return;
     setDistrictsLoading(true);
-    api.getDistricts()
-      .then((data) => setDistricts(data || []))
+    api.getDistrictsWithOfficialStatus()
+      .then((data) =>
+        setDistricts(
+          (data || [])
+            .map((d) => ({ id: d.id, name: d.name }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        ),
+      )
       .catch(() => addToast('Failed to load districts', 'error'))
       .finally(() => setDistrictsLoading(false));
   }, [showModal, modalType, addToast]);
@@ -520,20 +527,19 @@ export const ConferenceAdminOfficials: React.FC = () => {
                       <label className="block text-sm font-medium text-textDark mb-1.5">
                         District <span className="text-danger">*</span>
                       </label>
-                      <select
-                        value={selectedDistrictId}
-                        onChange={(e) => handleDistrictChange(parseInt(e.target.value))}
+                      <SearchableSelect
+                        options={districts.map((d) => ({
+                          value: String(d.id),
+                          label: d.name,
+                        }))}
+                        value={selectedDistrictId ? String(selectedDistrictId) : ''}
+                        onChange={(value) => handleDistrictChange(value ? parseInt(value, 10) : 0)}
+                        placeholder={districtsLoading ? 'Loading districts…' : 'Select District'}
+                        searchPlaceholder="Search districts…"
                         disabled={districtsLoading || !formData.conference_id}
-                        className="w-full px-3 py-2 bg-white text-textDark border border-borderColor rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm disabled:opacity-60"
+                        emptyMessage="No districts match your search"
                         required
-                      >
-                        <option value={0}>
-                          {districtsLoading ? 'Loading districts…' : 'Select District'}
-                        </option>
-                        {districts.map((d) => (
-                          <option key={d.id} value={d.id}>{d.name}</option>
-                        ))}
-                      </select>
+                      />
                       {!formData.conference_id && (
                         <p className="text-xs text-textMuted mt-1">Select a conference first</p>
                       )}
