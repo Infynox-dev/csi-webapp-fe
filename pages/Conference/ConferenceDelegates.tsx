@@ -200,7 +200,7 @@ export const ConferenceDelegates: React.FC = () => {
   const [selectedMember, setSelectedMember] = useState<AvailableMember | null>(null);
   const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(null);
   const [foodPreference, setFoodPreference] = useState<FoodPref>('veg');
-  const [accommodationRequired, setAccommodationRequired] = useState<StayPref>(false);
+  const [accommodationRequired, setAccommodationRequired] = useState<StayPref>(true);
 
   const refreshData = async () => {
     await refetchDelegates();
@@ -238,7 +238,7 @@ export const ConferenceDelegates: React.FC = () => {
     setSelectedMember(member ?? null);
     setPickerSearchTerm('');
     setFoodPreference('veg');
-    setAccommodationRequired(false);
+    setAccommodationRequired(true);
     setShowAddDialog(true);
   };
 
@@ -251,7 +251,7 @@ export const ConferenceDelegates: React.FC = () => {
   const openEditDialog = (row: Attendee) => {
     setSelectedAttendee(row);
     setFoodPreference(row.food_preference ?? null);
-    setAccommodationRequired(row.accommodation_required ?? null);
+    setAccommodationRequired(row.accommodation_required ?? true);
     setShowEditDialog(true);
   };
 
