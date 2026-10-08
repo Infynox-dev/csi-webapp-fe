@@ -273,6 +273,11 @@ export interface ConferenceDelegatesResponse {
   max_count: number;
   payment_status: string | null;
   amount_to_pay: number;
+  total_paid?: number;
+  balance_due?: number;
+  overall_status?: string;
+  has_blocking_pending?: boolean;
+  edits_locked?: boolean;
   food_preference: ConferenceFoodPref | null;
 }
 

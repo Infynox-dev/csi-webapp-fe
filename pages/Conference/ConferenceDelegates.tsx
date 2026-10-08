@@ -180,8 +180,10 @@ export const ConferenceDelegates: React.FC = () => {
   const delegates = (delegatesData?.delegate_members || []) as Attendee[];
   const officialCount = officials.length;
   const delegateCount = delegates.length;
-  const canAddOfficial = conferenceActive && officialCount < officialLimit;
-  const canAddDelegate = conferenceActive && delegateCount < memberLimit;
+  const editsLocked = Boolean(delegatesData?.edits_locked);
+  const canMutateRoster = conferenceActive && !editsLocked;
+  const canAddOfficial = canMutateRoster && officialCount < officialLimit;
+  const canAddDelegate = canMutateRoster && delegateCount < memberLimit;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [memberPage, setMemberPage] = useState(1);
@@ -402,6 +404,21 @@ export const ConferenceDelegates: React.FC = () => {
         </Card>
       )}
 
+      {conferenceActive && editsLocked && (
+        <Card className="p-4 bg-blue-50 border-blue-200">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-medium text-blue-900">Roster locked</h4>
+              <p className="text-sm text-blue-800 mt-1">
+                Officials, delegates, and preferences cannot be changed after a payment has been
+                submitted or approved. You can still upload additional payment proofs if needed.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       <AttendeeTable
         title={`Officials (${officialCount}/${officialLimit})`}
         hint="Includes the district official added by conference admin. Preferences stay blank until someone from this district sets them."
@@ -414,7 +431,7 @@ export const ConferenceDelegates: React.FC = () => {
         onQuery={setOfficialQuery}
         onGender={setOfficialGender}
         onFood={setOfficialFood}
-        canEdit={!!conferenceActive}
+        canEdit={canMutateRoster}
         onEdit={openEditDialog}
         onRemove={(row) => {
           setSelectedAttendee(row);
@@ -434,7 +451,7 @@ export const ConferenceDelegates: React.FC = () => {
         onQuery={setDelegateQuery}
         onGender={setDelegateGender}
         onFood={setDelegateFood}
-        canEdit={!!conferenceActive}
+        canEdit={canMutateRoster}
         onEdit={openEditDialog}
         onRemove={(row) => {
           setSelectedAttendee(row);
@@ -505,7 +522,7 @@ export const ConferenceDelegates: React.FC = () => {
                         <div className="flex flex-wrap justify-end gap-2">
                           <Button
                             size="sm"
-                            disabled={!conferenceActive || !canAddOfficial}
+                            disabled={!canAddOfficial}
                             onClick={() => openAddDialog('official', member)}
                           >
                             <UserCog className="w-4 h-4 mr-1" />
@@ -514,7 +531,7 @@ export const ConferenceDelegates: React.FC = () => {
                           <Button
                             variant="success"
                             size="sm"
-                            disabled={!conferenceActive || !canAddDelegate}
+                            disabled={!canAddDelegate}
                             onClick={() => openAddDialog('delegate', member)}
                           >
                             <UserPlus className="w-4 h-4 mr-1" />
