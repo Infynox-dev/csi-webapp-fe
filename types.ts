@@ -277,7 +277,6 @@ export interface ConferenceDelegatesResponse {
   balance_due?: number;
   overall_status?: string;
   has_blocking_pending?: boolean;
-  edits_locked?: boolean;
   food_preference: ConferenceFoodPref | null;
 }
 

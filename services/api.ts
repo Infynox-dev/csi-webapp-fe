@@ -387,7 +387,6 @@ class ApiService {
       balance_due: rawData.balance_due || 0,
       overall_status: rawData.overall_status || 'not_submitted',
       has_blocking_pending: Boolean(rawData.has_blocking_pending),
-      edits_locked: Boolean(rawData.edits_locked),
       food_preference: rawData.food_preference || { veg_count: 0, non_veg_count: 0 },
       official_count: rawData.official_count || 0,
       official_limit: rawData.official_limit || 0,

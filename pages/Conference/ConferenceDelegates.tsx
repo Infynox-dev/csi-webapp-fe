@@ -180,8 +180,7 @@ export const ConferenceDelegates: React.FC = () => {
   const delegates = (delegatesData?.delegate_members || []) as Attendee[];
   const officialCount = officials.length;
   const delegateCount = delegates.length;
-  const editsLocked = Boolean(delegatesData?.edits_locked);
-  const canMutateRoster = conferenceActive && !editsLocked;
+  const canMutateRoster = conferenceActive;
   const canAddOfficial = canMutateRoster && officialCount < officialLimit;
   const canAddDelegate = canMutateRoster && delegateCount < memberLimit;
 
@@ -399,21 +398,6 @@ export const ConferenceDelegates: React.FC = () => {
             <div>
               <h4 className="font-medium text-yellow-800">Registration Closed</h4>
               <p className="text-sm text-yellow-700 mt-1">This conference is not open for changes.</p>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {conferenceActive && editsLocked && (
-        <Card className="p-4 bg-blue-50 border-blue-200">
-          <div className="flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-medium text-blue-900">Roster locked</h4>
-              <p className="text-sm text-blue-800 mt-1">
-                Officials, delegates, and preferences cannot be changed after a payment has been
-                submitted or approved. You can still upload additional payment proofs if needed.
-              </p>
             </div>
           </div>
         </Card>
