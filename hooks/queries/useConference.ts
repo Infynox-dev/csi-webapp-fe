@@ -160,7 +160,7 @@ export const useConferenceExportData = () => {
   return useQuery({
     queryKey: queryKeys.conference.exportData(),
     queryFn: async () => {
-      const data = await api.getConferenceExportData();
+      const data = await api.exportConferenceDataOfficial();
       return data;
     },
   });

@@ -483,32 +483,11 @@ class ApiService {
     }>('/conference/official/food-preference', data, { token });
   }
 
-  // GET /conference/official/export-excel - Export unit's conference data to Excel
-  async getConferenceExportData() {
+  // GET /conference/official/export-excel - Download this district's conference roster
+  exportConferenceDataOfficial() {
     const token = this.getToken();
     if (!token) throw new Error('Authentication required');
-    return httpGet<{
-      message: string;
-      district: string;
-      data: {
-        officials: Array<{ id: number; name: string; phone: string; gender?: string }>;
-        members: Array<{ id: number; name: string; phone: string; gender: string }>;
-        payments: Array<{
-          amount_to_pay: number;
-          uploaded_by: string;
-          date: string;
-          status: string;
-          proof_path: string | null;
-          payment_reference: string | null;
-        }>;
-        count_of_officials: number;
-        count_of_members: number;
-        count_of_male_members: number;
-        count_of_female_members: number;
-        veg_count: number;
-        non_veg_count: number;
-      };
-    }>('/conference/official/export-excel', { token });
+    return httpGet<Blob>('/conference/official/export-excel', { token, asBlob: true });
   }
 
   // -------------------------
