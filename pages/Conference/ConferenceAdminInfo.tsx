@@ -3,6 +3,7 @@ import { Card, Badge, Button } from '../../components/ui';
 import { Users, Download, ChevronDown, ChevronRight, MapPin, Phone, User, Search } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 import { api } from '../../services/api';
+import { downloadBlob } from '../../services/download';
 import { useConferencesAdmin, useConferenceAdminInfo } from '../../hooks/queries';
 
 interface Conference {
@@ -75,15 +76,21 @@ export const ConferenceAdminInfo: React.FC = () => {
   }, [conferences, selectedConferenceId]);
 
   // Use TanStack Query for conference info
-  const { data: conferenceInfo, isLoading: loadingInfo } = useConferenceAdminInfo(selectedConferenceId || 0);
+  const {
+    data: conferenceInfo,
+    isLoading: loadingInfo,
+    isError: infoError,
+    refetch: refetchInfo,
+  } = useConferenceAdminInfo(selectedConferenceId || 0);
 
   const handleExport = async () => {
     if (!selectedConferenceId) return;
     
     try {
       setExporting(true);
-      await api.exportConferenceInfoAdmin(selectedConferenceId);
-      addToast("Export initiated successfully", "success");
+      const blob = await api.exportConferenceInfoAdmin(selectedConferenceId);
+      downloadBlob(blob, `conference_info_${selectedConferenceId}.xlsx`);
+      addToast('Export downloaded', 'success');
     } catch (err) {
       addToast("Failed to export data", "error");
     } finally {
@@ -239,6 +246,16 @@ export const ConferenceAdminInfo: React.FC = () => {
                 <div className="h-16 bg-gray-200 rounded-lg"></div>
               </div>
             ))}
+          </div>
+        ) : infoError ? (
+          <div className="text-center py-12">
+            <MapPin className="w-12 h-12 text-textMuted mx-auto mb-4" />
+            <p className="text-textMuted mb-4">
+              Could not load delegate info. The request may have timed out or the server may be busy.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => refetchInfo()}>
+              Retry
+            </Button>
           </div>
         ) : !conferenceInfo || filteredDistricts.length === 0 ? (
           <div className="text-center py-12">

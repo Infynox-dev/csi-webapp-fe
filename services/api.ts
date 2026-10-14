@@ -567,11 +567,10 @@ class ApiService {
   exportConferenceInfoAdmin(conferenceId: number) {
     const token = this.getToken();
     if (!token) throw new Error('Authentication required');
-    return httpPost<{
-      message: string;
-      conference_id: number;
-      data: Record<string, any>;
-    }>(`/admin/conference/${conferenceId}/info/export`, {}, { token });
+    return httpPost<Blob>(`/admin/conference/${conferenceId}/info/export`, {}, {
+      token,
+      asBlob: true,
+    });
   }
 
   // GET /admin/conference/{conference_id}/payment-info - Get payment info for conference
